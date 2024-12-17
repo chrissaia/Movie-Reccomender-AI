@@ -1,31 +1,20 @@
-name; rating; genre; year; released; score; votes; director; writer; star; country; budget; gross; company; runtime
-The Shining | R; Drama; 1980; June 13, 1980 (United States); 8.4; 927000; Stanley Kubrick; Stephen King; Jack Nicholson; United Kingdom; 19000000; 46998772; Warner Bros.; 146
-The Blue Lagoon; R; Adventure; 1980; July 2, 1980 (United States); 5.8; 65000; Randal Kleiser; Henry De Vere Stacpoole; Brooke Shields; United States; 4500000; 58853106; Columbia Pictures; 104
-Star Wars Episode V - The Empire Strikes Back; PG; Action; 1980; June 20, 1980 (United States); 8.7; 1200000; Irvin Kershner; Leigh Brackett; Mark Hamill; United States; 18000000; 538375067; Lucasfilm; 124
-Airplane!; PG; Comedy; 1980; July 2, 1980 (United States); 7.7; 221000; Jim Abrahams; Jim Abrahams; Robert Hays; United States; 3500000; 83453539; Paramount Pictures; 88
-Caddyshack; R; Comedy; 1980; July 25, 1980 (United States); 7.3; 108000; Harold Ramis; Brian Doyle-Murray; Chevy Chase; United States; 6000000; 39846344; Orion Pictures; 98
-Friday the 13th; R; Horror; 1980; May 9, 1980 (United States); 6.4; 123000; Sean S. Cunningham; Victor Miller; Betsy Palmer; United States; 550000; 39754601; Paramount Pictures; 95
-The Blues Brothers; R; Action; 1980; June 20, 1980 (United States); 7.9; 188000; John Landis; Dan Aykroyd; John Belushi; United States; 27000000; 115229890; Universal Pictures; 133
-Raging Bull; R; Biography; 1980; December 19, 1980 (United States); 8.2; 330000; Martin Scorsese; Jake LaMotta; Robert De Niro; United States; 18000000; 23402427; Chartoff-Winkler Productions; 129;
-Superman II; PG; Action; 1980; June 19, 1981 (United States); 6.8; 101000; Richard Lester; Jerry Siegel; Gene Hackman; United States; 54000000; 108185706; Dovemead Films; 127;
-The Long Riders; R; Biography; 1980; May 16, 1980 (United States); 7; 10000; Walter Hill; Bill Bryden; David Carradine; United States; 10000000; 15795189; United Artists; 100;
-Any Which Way You Can; PG; Action; 1980; December 17, 1980 (United States); 6.1; 18000; Buddy Van Horn; Stanford Sherman; Clint Eastwood; United States; 15000000; 70687344; The Malpaso Company; 116;
-The Gods Must Be Crazy; PG; Adventure; 1980; October 26, 1984 (United States); 7.3; 54000; Jamie Uys; Jamie Uys; N!xau; South Africa; 5000000; 30031783; C.A.T. Films; 109;
-Popeye; PG; Adventure; 1980; December 12, 1980 (United States); 5.3; 30000; Robert Altman; Jules Feiffer; Robin Williams; United States; 20000000; 49823037; Paramount Pictures; 114;
-Ordinary People; R; Drama; 1980; September 19, 1980 (United States); 7.7; 49000; Robert Redford; Judith Guest; Donald Sutherland; United States; 6000000; 54766923; Paramount Pictures; 124;
-Dressed to Kill; R; Crime; 1980; July 25, 1980 (United States); 7.1; 37000; Brian De Palma; Brian De Palma; Michael Caine; United States; 6500000; 31899000; Filmways Pictures; 104;
-Somewhere in Time; PG; Drama; 1980; October 3, 1980 (United States); 7.2; 27000; Jeannot Szwarc; Richard Matheson; Christopher Reeve; United States; 5100000; 9709597; Rastar Pictures; 103;
-Fame; R; Drama; 1980; May 16, 1980 (United States); 6.6; 21000; Alan Parker; Christopher Gore; Eddie Barth; United States; ; 21202829; Metro-Goldwyn-Mayer (MGM); 134;
-9 to 5; PG; Comedy; 1980; December 19, 1980 (United States); 6.9; 29000; Colin Higgins; Patricia Resnick; Jane Fonda; United States; 10000000; 103300686; IPC Films; 109;
-The Fog; R; Horror; 1980; February 8, 1980 (United States); 6.8; 66000; John Carpenter; John Carpenter; Adrienne Barbeau; United States; 1000000; 21448782; AVCO Embassy Pictures; 89;
-Stir Crazy; R; Comedy; 1980; December 12, 1980 (United States); 6.8; 26000; Sidney Poitier; Bruce Jay Friedman; Gene Wilder; United States; ; 101300000; Columbia Pictures; 111;
-Cruising; R; Crime; 1980; February 15, 1980 (United States); 6.5; 20000; William Friedkin; William Friedkin; Al Pacino; West Germany; 11000000; 19814523; Lorimar Film Entertainment; 102;
-Heaven's Gate; R; Adventure; 1980; April 24, 1981 (United States); 6.8; 14000; Michael Cimino; Michael Cimino; Kris Kristofferson; United States; 44000000; 3484523; Partisan Productions; 219;
-The Final Countdown; PG; Action; 1980; August 1, 1980 (United States); 6.7; 22000; Don Taylor; Thomas Hunter; Kirk Douglas; United States; 12000000; 16647800; Bryna Productions; 103;
-Xanadu; PG; Fantasy; 1980; August 8, 1980 (United States); 5.3; 12000; Robert Greenwald; Richard Christian Danus; Olivia Newton-John; United States; 20000000; 22762571; Universal Pictures; 96;
-Urban Cowboy; PG; Drama; 1980; June 6, 1980 (United States); 6.4; 14000; James Bridges; Aaron Latham; John Travolta; United States; ; 46918287; Paramount Pictures; 132;
-Altered States; R; Horror; 1980; December 25, 1980 (United States); 6.9; 33000; Ken Russell; Paddy Chayefsky; William Hurt; United States; ; 19853892; Warner Bros.; 102;
-Little Darlings; R; Comedy; 1980; March 21, 1980 (United States); 6.5; 5100; Ron Maxwell; Kimi Peck; Tatum O'Neal; United States; ; 34326249; Stephen Friedman/Kings Road Productions; 96;
-Raise the Titanic; PG; Action; 1980; August 1, 1980 (United States); 5; 4100; Jerry Jameson; Adam Kennedy; Jason Robards; United Kingdom; 36000000; ; ITC Films; 115;
-Brubaker; R; Crime; 1980; June 20, 1980 (United States); 7.2; 17000; Stuart Rosenberg; W.D. Richter; Robert Redford; United States; 9000000; 37121708; Twentieth Century Fox; 131;
-American Gigolo; R; Crime; 1980; February 1, 1980 (United States); 6.2; 22000; Paul Schrader; Paul Schrader; Richard Gere; United States; 4800000; 22743674; Paramount Pictures; 117;
+| name | rating | genre | year | released | score | votes | director | writer | star | country | budget | gross | company | runtime |
+|------|--------|-------|------|----------|-------|-------|----------|--------|------|---------|--------|-------|--------|---------|
+| The Shining | R | Drama | 1980 | June 13, 1980 (United States) | 8.4 | 927000 | Stanley Kubrick | Stephen King | Jack Nicholson | United Kingdom | 19000000 | 46998772 | Warner Bros. | 146 |
+| The Blue Lagoon | R | Adventure | 1980 | July 2, 1980 (United States) | 5.8 | 65000 | Randal Kleiser | Henry De Vere Stacpoole | Brooke Shields | United States | 4500000 | 58853106 | Columbia Pictures | 104 |
+| Star Wars: Episode V - The Empire Strikes Back | PG | Action | 1980 | June 20, 1980 (United States) | 8.7 | 1200000 | Irvin Kershner | Leigh Brackett | Mark Hamill | United States | 18000000 | 538375067 | Lucasfilm | 124 |
+| Airplane! | PG | Comedy | 1980 | July 2, 1980 (United States) | 7.7 | 221000 | Jim Abrahams | Jim Abrahams | Robert Hays | United States | 3500000 | 83453539 | Paramount Pictures | 88 |
+| Caddyshack | R | Comedy | 1980 | July 25, 1980 (United States) | 7.3 | 108000 | Harold Ramis | Brian Doyle-Murray | Chevy Chase | United States | 6000000 | 39846344 | Orion Pictures | 98 |
+| Friday the 13th | R | Horror | 1980 | May 9, 1980 (United States) | 6.4 | 123000 | Sean S. Cunningham | Victor Miller | Betsy Palmer | United States | 550000 | 39754601 | Paramount Pictures | 95 |
+| The Blues Brothers | R | Action | 1980 | June 20, 1980 (United States) | 7.9 | 188000 | John Landis | Dan Aykroyd | John Belushi | United States | 27000000 | 115229890 | Universal Pictures | 133 |
+| Raging Bull | R | Biography | 1980 | December 19, 1980 (United States) | 8.2 | 330000 | Martin Scorsese | Jake LaMotta | Robert De Niro | United States | 18000000 | 23402427 | Chartoff-Winkler Productions | 129 |
+| Superman II | PG | Action | 1980 | June 19, 1981 (United States) | 6.8 | 101000 | Richard Lester | Jerry Siegel | Gene Hackman | United States | 54000000 | 108185706 | Dovemead Films | 127 |
+| The Long Riders | R | Biography | 1980 | May 16, 1980 (United States) | 7 | 10000 | Walter Hill | Bill Bryden | David Carradine | United States | 10000000 | 15795189 | United Artists | 100 |
+| Any Which Way You Can | PG | Action | 1980 | December 17, 1980 (United States) | 6.1 | 18000 | Buddy Van Horn | Stanford Sherman | Clint Eastwood | United States | 15000000 | 70687344 | The Malpaso Company | 116 |
+| The Gods Must Be Crazy | PG | Adventure | 1980 | October 26, 1984 (United States) | 7.3 | 54000 | Jamie Uys | Jamie Uys | N!xau | South Africa | 5000000 | 30031783 | C.A.T. Films | 109 |
+| Popeye | PG | Adventure | 1980 | December 12, 1980 (United States) | 5.3 | 30000 | Robert Altman | Jules Feiffer | Robin Williams | United States | 20000000 | 49823037 | Paramount Pictures | 114 |
+| Ordinary People | R | Drama | 1980 | September 19, 1980 (United States) | 7.7 | 49000 | Robert Redford | Judith Guest | Donald Sutherland | United States | 6000000 | 54766923 | Paramount Pictures | 124 |
+| Dressed to Kill | R | Crime | 1980 | July 25, 1980 (United States) | 7.1 | 37000 | Brian De Palma | Brian De Palma | Michael Caine | United States | 6500000 | 31899000 | Filmways Pictures | 104 |
+| Somewhere in Time | PG | Drama | 1980 | October 3, 1980 (United States) | 7.2 | 27000 | Jeannot Szwarc | Richard Matheson | Christopher Reeve | United States | 5100000 | 9709597 | Rastar Pictures | 103 |
+| Fame | R | Drama | 1980 | May 16, 1980 (United States) | 6.6 | 21000 | Alan Parker | Christopher Gore | Eddie Barth | United States |  | 21202829 | Metro-Goldwyn-Mayer (MGM) | 134 |
+| 9 to 5 | PG | Comedy | 1980 | December 19, 1980 (United States) | 6.9 | 29000 | Colin Higgins | Patricia Resnick | Jane Fonda | United States | 10000000 | 103300686 | IPC Films | 109 |
