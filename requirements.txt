@@ -1,3 +1,10 @@
 pandas
 numpy
 ipywidgets
+lightgbm
+xgboost
+catboost
+scikit-learn
+matplotlib
+optuna
+mlflow

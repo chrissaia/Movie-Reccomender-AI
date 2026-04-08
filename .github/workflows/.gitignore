@@ -1,0 +1,16 @@
+# venvs
+.venv/
+venv/
+
+# OS cruft
+.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+#data
+data/processed/
+data/raw/
+mlruns

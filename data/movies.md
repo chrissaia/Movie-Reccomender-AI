@@ -1,5 +1,4 @@
-### Here is an example of the csv file that was used to train this model
-[Click here to see the full csv file on Google Sheets](https://docs.google.com/spreadsheets/d/1g6UmjSta0P5uDgHXrVDqmAyaahW7MgvPFzQw3PS1Nsg/edit?gid=1449678122#gid=1449678122)
+### Here is an example of the csv file
 
 | name | rating | genre | year | released | score | votes | director | writer | star | country | budget | gross | company | runtime |
 |------|--------|-------|------|----------|-------|-------|----------|--------|------|---------|--------|-------|--------|---------|
