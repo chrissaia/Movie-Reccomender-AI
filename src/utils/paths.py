@@ -29,7 +29,9 @@ Y_TEST_PATH = RANKING_DIR / "Y_test.csv"
 QID_TRAIN_PATH = RANKING_DIR / "QID_train.csv"
 QID_TEST_PATH = RANKING_DIR / "QID_test.csv"
 
-
-
 # Models
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
+
+# Database
+DB_DIR = DATA_DIR / "db"
+SQLITE_DB_PATH = DB_DIR / "movies.db"
