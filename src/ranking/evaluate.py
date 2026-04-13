@@ -51,7 +51,7 @@ def evaluate_model(model, X_test, y_test, qid_test):
 
     metrics = {
         "predict_time": predict_time,
-        "LGBM_NDCG@10:": lgbm_ndcg,
+        "lgbm_ndcg_10:": lgbm_ndcg,
     }
 
     return scores, metrics

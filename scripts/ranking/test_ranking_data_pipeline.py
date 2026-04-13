@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath("src"))
 
 from src.data.load import load_data
 from src.data.preprocess import preprocess_data
-from src.ranking.build_dateset import build_dataset
+from src.ranking.build_dataset import build_dataset
 from src.ranking.similarity_rank import load_or_compute_similarity
 from src.data.split import group_train_test_split
 from src.data.export import export_df

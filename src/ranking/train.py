@@ -18,6 +18,9 @@ def train_model(X_train: pd.DataFrame, y_train: pd.DataFrame, qid_train: pd.Data
     model = LGBMRanker(**params)
 
     # Train model
+    model = LGBMRanker(**params)
+
+    y_train = np.asarray(y_train).reshape(-1)
     qids = np.asarray(qid_train).reshape(-1)
     group_train = pd.Series(qids).value_counts(sort=False).sort_index().tolist()
 
