@@ -45,7 +45,7 @@ def main():
 
     # 5. Export data
     print("\n[6] Exporting features.. ")
-    export_df(pd.DataFrame(df_features), COSINE_FEATURES_PATH)
+    export_df(pd.DataFrame(df_features), COSINE_FEATURES_PATH, header=True)
     export_df(pd.DataFrame(movie_names), MOVIE_NAMES_PATH)
     export_df(pd.DataFrame(similarity_matrix), COSINE_SIMILARITY_PATH)
 

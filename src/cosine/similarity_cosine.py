@@ -9,7 +9,6 @@ import pandas as pd
 def load_or_compute_similarity(
     df_features: pd.DataFrame,
     output_path: str | Path,
-    round_digits: int = 3,
     force_recompute: bool = False,
 ) -> pd.DataFrame:
     """

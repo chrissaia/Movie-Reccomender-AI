@@ -318,9 +318,9 @@ def run(args: argparse.Namespace) -> None:
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(args.experiment)
 
-    if args.pipeline == "cosine":
+    if args.pipeline == "cosine" or args.pipeline == "both":
         run_cosine_pipeline(args)
-    elif args.pipeline == "ranking":
+    elif args.pipeline == "ranking" or args.pipeline == "both":
         run_ranking_pipeline(args)
     else:
         raise ValueError(f"Unsupported pipeline: {args.pipeline}")
@@ -332,9 +332,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--pipeline",
         type=str,
-        choices=["cosine", "ranking"],
+        choices=["cosine", "ranking", "both"],
         required=True,
-        help="Which pipeline to run",
+        help="Which pipeline to run cosine, ranking, both",
     )
     p.add_argument(
         "--input",

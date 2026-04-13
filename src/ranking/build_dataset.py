@@ -138,6 +138,10 @@ def _validate_inputs(df: pd.DataFrame, similarity_matrix: pd.DataFrame, top_k: i
     if len(df) == 0:
         raise ValueError("df is empty")
 
+    n_rows, n_cols = similarity_matrix.shape
+    if abs(n_rows - n_cols) > 1:
+        raise ValueError("similarity_matrix must be square")
+
     if top_k <= 0:
         raise ValueError(f"top_k must be > 0, got {top_k}")
 
