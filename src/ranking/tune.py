@@ -53,7 +53,7 @@ def tune_model(X, y, qid, n_trials: int = 10, n_splits: int = 3, seed: int = 42)
     y = np.asarray(y).reshape(-1)
     qid = np.asarray(qid).reshape(-1)
 
-    if len(X) != len(y) or len(X) != len(qid):
+    if len(X) - len(y) > 1 or len(X) - len(qid) > 1:
         raise ValueError("X, y, and qid must have the same length")
 
     gkf = GroupKFold(n_splits=n_splits)

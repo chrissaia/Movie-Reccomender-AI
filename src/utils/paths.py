@@ -12,6 +12,8 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 
 # Raw data
 RAW_MOVIES_PATH = RAW_DATA_DIR / "movies.csv"
+RAW_MOVIES_ENRICHED_PATH = RAW_DATA_DIR / "movies_enriched.csv"
+
 
 # Cosine pipeline
 COSINE_DIR = PROCESSED_DATA_DIR / "cosine"

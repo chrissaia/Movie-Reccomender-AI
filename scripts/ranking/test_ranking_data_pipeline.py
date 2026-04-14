@@ -16,7 +16,7 @@ from src.data.split import group_train_test_split
 from src.data.export import export_df
 
 # === CONFIG ===
-from src.utils.paths import RAW_MOVIES_PATH
+from src.utils.paths import RAW_MOVIES_ENRICHED_PATH
 from src.utils.paths import RANKING_SIMILARITY_PATH
 
 from src.utils.paths import X_TRAIN_PATH, X_TEST_PATH
@@ -24,13 +24,14 @@ from src.utils.paths import Y_TRAIN_PATH, Y_TEST_PATH
 from src.utils.paths import QID_TRAIN_PATH, QID_TEST_PATH
 
 
+OVERWRITE = False
 
 def main():
     print("=== Testing Cosine Data Pipeline: Load → Preprocess → Build Dataset ===")
 
     # 1. Load Data
     print("\n[1] Loading data...")
-    df = load_data(RAW_MOVIES_PATH)
+    df = load_data(RAW_MOVIES_ENRICHED_PATH)
     print(f"Data loaded. Shape: {df.shape}")
     print(df.head(3))
 
@@ -64,12 +65,12 @@ def main():
     print("\n[6] Exporting features.. ")
     export_df(similarity_matrix, RANKING_SIMILARITY_PATH)
 
-    export_df(pd.DataFrame(X_train), X_TRAIN_PATH)
-    export_df(pd.DataFrame(X_test), X_TEST_PATH)
-    export_df(pd.DataFrame(y_train), Y_TRAIN_PATH)
-    export_df(pd.DataFrame(y_test), Y_TEST_PATH)
-    export_df(pd.DataFrame(qid_train), QID_TRAIN_PATH)
-    export_df(pd.DataFrame(qid_test), QID_TEST_PATH)
+    export_df(pd.DataFrame(X_train), X_TRAIN_PATH, overwrite=OVERWRITE, header=True)
+    export_df(pd.DataFrame(X_test), X_TEST_PATH, overwrite=OVERWRITE, header=True)
+    export_df(pd.DataFrame(y_train), Y_TRAIN_PATH, overwrite=OVERWRITE, header=True)
+    export_df(pd.DataFrame(y_test), Y_TEST_PATH, overwrite=OVERWRITE, header=True)
+    export_df(pd.DataFrame(qid_train), QID_TRAIN_PATH, overwrite=OVERWRITE, header=True)
+    export_df(pd.DataFrame(qid_test), QID_TEST_PATH, overwrite=OVERWRITE, header=True)
 
 
     print("\n✅ Phase 1 ranking data pipeline completed successfully!")

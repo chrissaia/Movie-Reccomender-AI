@@ -4,9 +4,10 @@ import pandas as pd
 def export_df(
     df: pd.DataFrame,
     output_path: str,
-    header: bool = False,
+    overwrite: bool = False,
+    header: bool = True,
 ):
-    if not os.path.isfile(output_path):
+    if not os.path.isfile(output_path) or overwrite:
         parent_path = os.path.dirname(output_path)
 
         if os.path.exists(parent_path):

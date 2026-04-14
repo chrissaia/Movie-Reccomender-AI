@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Iterable
-
 import pandas as pd
 
 
@@ -29,6 +27,25 @@ def replace_movies(conn: sqlite3.Connection, df: pd.DataFrame) -> None:
         "budget",
         "gross",
         "runtime",
+        "tmdb_found",
+        "tmdb_id",
+        "tmdb_title",
+        "tmdb_original_title",
+        "tmdb_release_date",
+        "tmdb_overview",
+        "tmdb_genres",
+        "tmdb_keywords",
+        "tmdb_cast_top5",
+        "tmdb_directors",
+        "tmdb_writers",
+        "tmdb_popularity",
+        "tmdb_vote_average",
+        "tmdb_vote_count",
+        "tmdb_runtime",
+        "tmdb_original_language",
+        "tmdb_production_companies",
+        "tmdb_production_countries",
+        "tmdb_spoken_languages",
     ]
 
     missing = [c for c in required_cols if c not in df.columns]
@@ -42,9 +59,18 @@ def replace_movies(conn: sqlite3.Connection, df: pd.DataFrame) -> None:
         """
         INSERT INTO movies (
             movie_id, name, year, genre, director, writer, star, country,
-            rating, company, score, votes, budget, gross, runtime
+            rating, company, score, votes, budget, gross, runtime,
+            tmdb_found, tmdb_id, tmdb_title, tmdb_original_title,
+            tmdb_release_date, tmdb_overview, tmdb_genres, tmdb_keywords,
+            tmdb_cast_top5, tmdb_directors, tmdb_writers, tmdb_popularity,
+            tmdb_vote_average, tmdb_vote_count, tmdb_runtime,
+            tmdb_original_language, tmdb_production_companies,
+            tmdb_production_countries, tmdb_spoken_languages
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
         """,
         rows,
     )
@@ -90,7 +116,11 @@ def get_neighbors_for_movie(
         mn.rank,
         mn.cosine_score,
         m.name AS neighbor_name,
-        m.year AS neighbor_year
+        m.year AS neighbor_year,
+        m.tmdb_genres,
+        m.tmdb_keywords,
+        m.tmdb_vote_average,
+        m.tmdb_vote_count
     FROM movie_neighbors mn
     JOIN movies m
       ON mn.neighbor_movie_id = m.movie_id

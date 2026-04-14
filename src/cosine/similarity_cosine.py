@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 def load_or_compute_similarity(
-    df_features: pd.DataFrame,
-    output_path: str | Path,
-    force_recompute: bool = False,
+        df_features: pd.DataFrame,
+        output_path: str | Path,
+        force_recompute: bool = False,
 ) -> pd.DataFrame:
     """
     Load a similarity matrix from disk if it exists, otherwise compute and save it.
@@ -34,14 +34,15 @@ def load_or_compute_similarity(
 
     if output_path.exists() and not force_recompute:
         print("File already exists. Loading file...")
-        similarity_df = pd.read_csv(output_path, header=None)
+        similarity_df = pd.read_csv(output_path, index_col=0)
         similarity_df = similarity_df.apply(pd.to_numeric, errors="raise")
         return similarity_df
-
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     print("Computing cosine similarity...")
-    similarity_df = cosine_similarity(df_features)
+    sim = cosine_similarity(df_features)
+    similarity_df = pd.DataFrame(sim)
+    similarity_df.to_csv(output_path, index=True)
 
     return similarity_df

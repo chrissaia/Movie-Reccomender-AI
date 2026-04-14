@@ -15,8 +15,6 @@ def train_model(X_train: pd.DataFrame, y_train: pd.DataFrame, qid_train: pd.Data
     :return: model, metrics,
     '''
 
-    model = LGBMRanker(**params)
-
     # Train model
     model = LGBMRanker(**params)
 

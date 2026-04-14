@@ -26,17 +26,23 @@ def ndcg_at_k(y_true, y_score, qids, k=10):
 
     return float(np.mean(ndcgs))
 
-def evaluate_model(model, X_test, y_test, qid_test):
+def evaluate_model(model, X_test, y_test, qid_test, X_train):
     '''
     Evaluate models performance on the test set
 
-    :param model:
-    :param X_test:
-    :param y_test:
-    :param qid_test:
+    parameters
+    ------------------
+    model:
+    X_test:
+    y_test:
+    qid_test:
 
-    :returns
-    model_scores, model_metrics
+
+    returns
+    -----------
+    model_scores
+    model_metrics
+    feature_importance
     '''
 
     start_time = time.time()
@@ -54,4 +60,10 @@ def evaluate_model(model, X_test, y_test, qid_test):
         "lgbm_ndcg_10:": lgbm_ndcg,
     }
 
-    return scores, metrics
+    importance = pd.DataFrame({
+        "feature": X_train.columns,
+        "importance": model.feature_importances_
+    }).sort_values("importance", ascending=False)
+
+
+    return scores, metrics, importance

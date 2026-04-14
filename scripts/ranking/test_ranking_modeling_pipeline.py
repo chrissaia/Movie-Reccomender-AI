@@ -48,9 +48,11 @@ def main():
 
     # 4. Build Features
     print("\n[4] Evaluate model...")
-    scores, metrics = evaluate_model(model, X_test, y_test, qid_test)
+    scores, metrics, importance = evaluate_model(model, X_test, y_test, qid_test, X_train)
     print(f"Model scores: {scores}")
     print(f"Model metrics: {metrics}")
+    print(X_train.columns.tolist())
+    print(f"Model importance: {importance}")
 
 
     print("\n✅ Phase 2 modeling pipeline completed successfully!")

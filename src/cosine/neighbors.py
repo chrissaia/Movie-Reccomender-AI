@@ -14,14 +14,13 @@ def build_topk_neighbors(
         raise ValueError("similarity_matrix must be 2D")
 
     n_rows, n_cols = sim.shape
-    if abs(n_rows - n_cols) > 1:
-        raise ValueError("similarity_matrix must be square", n_rows, n_cols)
+    if n_rows != n_cols:
+        raise ValueError("similarity_matrix must be square")
 
     if top_k <= 0:
         raise ValueError("top_k must be > 0")
 
     top_k = min(top_k, n_rows - 1)
-
     rows = []
 
     for i in range(n_rows):
@@ -36,9 +35,9 @@ def build_topk_neighbors(
             rank += 1
             rows.append(
                 {
-                    "source_movie_id": i,
+                    "source_movie_id": int(i),
                     "neighbor_movie_id": int(j),
-                    "rank": rank,
+                    "rank": int(rank),
                     "cosine_score": float(sims[j]),
                 }
             )
