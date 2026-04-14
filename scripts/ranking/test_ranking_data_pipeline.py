@@ -23,7 +23,6 @@ from src.utils.paths import X_TRAIN_PATH, X_TEST_PATH
 from src.utils.paths import Y_TRAIN_PATH, Y_TEST_PATH
 from src.utils.paths import QID_TRAIN_PATH, QID_TEST_PATH
 
-
 OVERWRITE = False
 
 def main():
@@ -43,7 +42,7 @@ def main():
 
     # 3. Create Similarity Matrix
     print("\n[3] Creating Similarity Matrix...")
-    similarity_matrix = load_or_compute_similarity(df_clean, RANKING_SIMILARITY_PATH)
+    similarity_matrix = load_or_compute_similarity(df_clean, RANKING_SIMILARITY_PATH, force_recompute=OVERWRITE)
     print(f"Similarity matrix successfully loaded. Shape: {similarity_matrix.shape}")
     print(similarity_matrix.head(3))
 
@@ -63,7 +62,7 @@ def main():
 
     # 6. Export Features
     print("\n[6] Exporting features.. ")
-    export_df(similarity_matrix, RANKING_SIMILARITY_PATH)
+    export_df(similarity_matrix, RANKING_SIMILARITY_PATH, overwrite=OVERWRITE, header=True)
 
     export_df(pd.DataFrame(X_train), X_TRAIN_PATH, overwrite=OVERWRITE, header=True)
     export_df(pd.DataFrame(X_test), X_TEST_PATH, overwrite=OVERWRITE, header=True)

@@ -14,7 +14,7 @@ def build_topk_neighbors(
         raise ValueError("similarity_matrix must be 2D")
 
     n_rows, n_cols = sim.shape
-    if n_rows != n_cols:
+    if n_rows - n_cols > 1:
         raise ValueError("similarity_matrix must be square")
 
     if top_k <= 0:

@@ -135,4 +135,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    #main() - DONE USING THIS - IT TAKES TOO LONG
+    pass

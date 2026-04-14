@@ -26,7 +26,7 @@ def ndcg_at_k(y_true, y_score, qids, k=10):
 
     return float(np.mean(ndcgs))
 
-def evaluate_model(model, X_test, y_test, qid_test, X_train):
+def evaluate_model(model, X_test, y_test, qid_test, X_train) -> tuple[np.ndarray[tuple[int]], dict[str, float], pd.DataFrame]:
     '''
     Evaluate models performance on the test set
 

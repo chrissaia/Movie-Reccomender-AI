@@ -17,7 +17,7 @@ from src.utils.paths import (
     COSINE_FEATURES_PATH,
     RAW_MOVIES_ENRICHED_PATH,
 )
-OVERWRITE = False
+OVERWRITE = True
 
 
 def main():
@@ -42,7 +42,7 @@ def main():
     similarity_matrix = load_or_compute_similarity(
         df_features=df_features,
         output_path=COSINE_SIMILARITY_PATH,
-        force_recompute=True,
+        force_recompute=OVERWRITE,
     )
     print(f"Similarity matrix successfully loaded. Shape: {similarity_matrix.shape}")
 

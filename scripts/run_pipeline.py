@@ -3,13 +3,6 @@
 scripts/run_pipeline.py
 
 End-to-end movie recommender pipeline.
-
-Supports:
-- cosine pipeline
-- ranking pipeline
-
-Flow:
-load -> preprocess -> build similarity/features -> split/tune/train/evaluate -> save artifacts -> log MLflow
 """
 
 from __future__ import annotations
@@ -45,7 +38,7 @@ from src.ranking.evaluate import evaluate_model
 
 from src.utils.paths import (
     PROJECT_ROOT,
-    RAW_MOVIES_PATH,
+    RAW_MOVIES_ENRICHED_PATH,
     COSINE_FEATURES_PATH,
     COSINE_SIMILARITY_PATH,
     MOVIE_NAMES_PATH,
@@ -127,22 +120,20 @@ def run_cosine_pipeline(args: argparse.Namespace) -> None:
         mlflow.log_artifact(str(MOVIE_NAMES_PATH), artifact_path="processed/cosine")
 
         log.info("Computing/loading cosine similarity matrix...")
-        sim = cosine_similarity_matrix(
+        sim_df = cosine_similarity_matrix(
             df_features=df_features,
             output_path=COSINE_SIMILARITY_PATH,
-            round_digits=3,
             force_recompute=args.force_recompute,
         )
 
-        sim_df = pd.DataFrame(sim)
-        sim_df.to_csv(COSINE_SIMILARITY_PATH, index=False, header=False)
+        sim_df.to_csv(COSINE_SIMILARITY_PATH, index=True)
         mlflow.log_artifact(str(COSINE_SIMILARITY_PATH), artifact_path="processed/cosine")
 
         summary = {
             "pipeline": "cosine",
             "n_movies": len(movie_names),
             "n_features": int(df_features.shape[1]),
-            "similarity_shape": list(np.asarray(sim_df).shape),
+            "similarity_shape": list(sim_df.shape),
         }
 
         mlflow.log_param("n_movies", len(movie_names))
@@ -150,9 +141,9 @@ def run_cosine_pipeline(args: argparse.Namespace) -> None:
         mlflow.log_text(json.dumps(summary, indent=2), artifact_file="cosine_summary.json")
 
         print("\nCosine pipeline complete.")
-        print(f"  Movies: {len(movie_names)}")
-        print(f"  Features: {df_features.shape[1]}")
-        print(f"  Similarity matrix shape: {sim_df.shape}")
+        print(f"Movies: {len(movie_names)}")
+        print(f"Features: {df_features.shape[1]}")
+        print(f"Similarity matrix shape: {sim_df.shape}")
 
 
 def run_ranking_pipeline(args: argparse.Namespace) -> None:
@@ -201,9 +192,7 @@ def run_ranking_pipeline(args: argparse.Namespace) -> None:
             output_path=RANKING_SIMILARITY_PATH,
             force_recompute=args.force_recompute,
         )
-        sim_df = pd.DataFrame(sim_df)
-        ensure_dir(RANKING_SIMILARITY_PATH.parent)
-        sim_df.to_csv(RANKING_SIMILARITY_PATH, index=False, header=False)
+        sim_df.to_csv(RANKING_SIMILARITY_PATH, index=True)
         mlflow.log_artifact(str(RANKING_SIMILARITY_PATH), artifact_path="processed/ranking")
 
         log.info("Building ranking dataset...")
@@ -233,12 +222,12 @@ def run_ranking_pipeline(args: argparse.Namespace) -> None:
 
         ensure_dir(X_TRAIN_PATH.parent)
 
-        pd.DataFrame(X_train).to_csv(X_TRAIN_PATH, index=False)
-        pd.DataFrame(X_test).to_csv(X_TEST_PATH, index=False)
-        pd.DataFrame({"label": y_train}).to_csv(Y_TRAIN_PATH, index=False)
-        pd.DataFrame({"label": y_test}).to_csv(Y_TEST_PATH, index=False)
-        pd.DataFrame({"qid": qid_train}).to_csv(QID_TRAIN_PATH, index=False)
-        pd.DataFrame({"qid": qid_test}).to_csv(QID_TEST_PATH, index=False)
+        X_train.to_csv(X_TRAIN_PATH, index=False)
+        X_test.to_csv(X_TEST_PATH, index=False)
+        pd.DataFrame({"label": y_train}).to_csv(Y_TRAIN_PATH, index=False, header=False)
+        pd.DataFrame({"label": y_test}).to_csv(Y_TEST_PATH, index=False, header=False)
+        pd.DataFrame({"qid": qid_train}).to_csv(QID_TRAIN_PATH, index=False, header=False)
+        pd.DataFrame({"qid": qid_test}).to_csv(QID_TEST_PATH, index=False, header=False)
 
         mlflow.log_artifact(str(X_TRAIN_PATH), artifact_path="processed/ranking")
         mlflow.log_artifact(str(X_TEST_PATH), artifact_path="processed/ranking")
@@ -282,12 +271,23 @@ def run_ranking_pipeline(args: argparse.Namespace) -> None:
 
         log.info("Evaluating ranking model...")
         eval_start = time.time()
-        scores, metrics = evaluate_model(model, X_test, y_test, qid_test)
+        scores, metrics, importance = evaluate_model(model, X_test, y_test, qid_test, X_train)
         eval_time = time.time() - eval_start
         mlflow.log_metric("eval_time_seconds", eval_time)
 
+        print("\nFeature importance:")
+        print(importance)
+
         for k, v in metrics.items():
             mlflow.log_metric(k, float(v))
+
+
+        for _, row in importance.iterrows():
+            feature = row["feature"]
+            score = row["importance"]
+
+            mlflow.log_metric(f"importance_{feature}", float(score))
+
 
         ensure_dir(ARTIFACTS_DIR)
         params_path = ARTIFACTS_DIR / "ranking_best_params.json"
@@ -310,7 +310,7 @@ def run_ranking_pipeline(args: argparse.Namespace) -> None:
 
         print("\nRanking pipeline complete.")
         for k, v in metrics.items():
-            print(f"  {k}: {v:.4f}")
+            print(f"{k}: {v:.4f}")
 
 
 def run(args: argparse.Namespace) -> None:
@@ -318,9 +318,12 @@ def run(args: argparse.Namespace) -> None:
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(args.experiment)
 
-    if args.pipeline == "cosine" or args.pipeline == "both":
+    if args.pipeline == "cosine":
         run_cosine_pipeline(args)
-    elif args.pipeline == "ranking" or args.pipeline == "both":
+    elif args.pipeline == "ranking":
+        run_ranking_pipeline(args)
+    elif args.pipeline == "both":
+        run_cosine_pipeline(args)
         run_ranking_pipeline(args)
     else:
         raise ValueError(f"Unsupported pipeline: {args.pipeline}")
@@ -334,12 +337,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         choices=["cosine", "ranking", "both"],
         required=True,
-        help="Which pipeline to run cosine, ranking, both",
+        help="Which pipeline to run",
     )
     p.add_argument(
         "--input",
         type=str,
-        default=str(RAW_MOVIES_PATH),
+        default=str(RAW_MOVIES_ENRICHED_PATH),
         help="Path to raw movie dataset",
     )
     p.add_argument(
@@ -419,17 +422,3 @@ if __name__ == "__main__":
     args = parse_args()
     setup_logging(args.verbose)
     run(args)
-
-
-'''
-Ranking without tuning:
-python -m scripts.run_pipeline --pipeline ranking --verbose
-
-Ranking with tuning:
-python -m scripts.run_pipeline --pipeline ranking --tune --tune_trials 10 --tune_cv_splits 3 --verbose
-python -m scripts.run_pipeline --pipeline ranking --tune --tune_trials 10 --tune_cv_splits 3 --verbose
-
-Cosine:
-python -m scripts.run_pipeline --pipeline cosine --verbose
-
-'''
