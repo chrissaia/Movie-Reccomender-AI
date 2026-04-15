@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+import os
+import sys
+
+sys.path.append(os.path.abspath("src"))
 
 from src.db.sqlite import get_connection
 from src.db.schema import ALL_SCHEMA_STATEMENTS

@@ -170,26 +170,19 @@ def compute_features(movie_a: pd.Series, movie_b: pd.Series) -> dict[str, float]
     }
 
 
-def make_label(similarity: float) -> int:
 
+def make_label(rank_pos: int) -> int:
     """
     Bucket a similarity score into a relevance label.
-
-    Labels:
-        4: similarity >= 0.90
-        3: similarity >= 0.80
-        2: similarity >= 0.65
-        1: similarity >= 0.50
-        0: similarity < 0.50
     """
 
-    if similarity >= 0.90:
+    if rank_pos < 5:
         return 4
-    if similarity >= 0.80:
+    if rank_pos < 10:
         return 3
-    if similarity >= 0.65:
+    if rank_pos < 20:
         return 2
-    if similarity >= 0.50:
+    if rank_pos < 30:
         return 1
     return 0
 
@@ -230,7 +223,7 @@ def _validate_inputs(df: pd.DataFrame, similarity_matrix: pd.DataFrame, top_k: i
 def build_dataset(
     df: pd.DataFrame,
     similarity_matrix: pd.DataFrame,
-    top_k: int = 50,
+    top_k: int = 20,
     min_similarity: float | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
@@ -294,7 +287,7 @@ def build_dataset(
                 continue
 
             X_rows.append(compute_features(movie_rows[i], movie_rows[j]))
-            y_rows.append(make_label(sim))
+            y_rows.append(make_label(kept))
             qid_rows.append(i)
 
             kept += 1

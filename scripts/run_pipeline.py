@@ -224,10 +224,10 @@ def run_ranking_pipeline(args: argparse.Namespace) -> None:
 
         X_train.to_csv(X_TRAIN_PATH, index=False)
         X_test.to_csv(X_TEST_PATH, index=False)
-        pd.DataFrame({"label": y_train}).to_csv(Y_TRAIN_PATH, index=False, header=False)
-        pd.DataFrame({"label": y_test}).to_csv(Y_TEST_PATH, index=False, header=False)
-        pd.DataFrame({"qid": qid_train}).to_csv(QID_TRAIN_PATH, index=False, header=False)
-        pd.DataFrame({"qid": qid_test}).to_csv(QID_TEST_PATH, index=False, header=False)
+        pd.DataFrame({"label": y_train}).to_csv(Y_TRAIN_PATH, index=False, header=True)
+        pd.DataFrame({"label": y_test}).to_csv(Y_TEST_PATH, index=False, header=True)
+        pd.DataFrame({"qid": qid_train}).to_csv(QID_TRAIN_PATH, index=False, header=True)
+        pd.DataFrame({"qid": qid_test}).to_csv(QID_TEST_PATH, index=False, header=True)
 
         mlflow.log_artifact(str(X_TRAIN_PATH), artifact_path="processed/ranking")
         mlflow.log_artifact(str(X_TEST_PATH), artifact_path="processed/ranking")
