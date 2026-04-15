@@ -3,8 +3,6 @@ import os
 
 # Make sure Python can find your src package
 import sys
-import pandas as pd
-import numpy as np
 
 sys.path.append(os.path.abspath("src"))
 
@@ -32,20 +30,10 @@ def main():
     qid_train = load_data(QID_TRAIN_PATH)
     qid_test = load_data(QID_TEST_PATH)
 
-    print(X_train.shape, y_train.shape, qid_train.shape)
-    print(y_train[:20].T)
-    print(qid_train[:20].T)
-    print("unique labels:", np.unique(y_train))
-    print(pd.Series(y_train.squeeze()).value_counts())
-    qid = qid_train.squeeze()
-    print(pd.Series(y_train.squeeze()).value_counts())
-    print(f"(qid[1:]).all() - {(qid[1:]).all()}, {(qid[1:])}")
-
     print(f"Data loaded. "
          f"X_train shape: {X_train.shape}\n, X_test shape: {X_test.shape}, "
           f"y_train shape: {y_train.shape}\n, y_test shape: {y_test.shape}, "
           f"qid_train shape: {qid_train.shape}\n, qid_test shape: {qid_test.shape}, ")
-
 
     # 2. Tune
     print("\n[2] Tuning data...")

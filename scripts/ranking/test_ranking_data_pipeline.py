@@ -23,7 +23,7 @@ from src.utils.paths import X_TRAIN_PATH, X_TEST_PATH
 from src.utils.paths import Y_TRAIN_PATH, Y_TEST_PATH
 from src.utils.paths import QID_TRAIN_PATH, QID_TEST_PATH
 
-OVERWRITE = True
+OVERWRITE = False
 
 def main():
     print("=== Testing Cosine Data Pipeline: Load → Preprocess → Build Dataset ===")
@@ -45,13 +45,6 @@ def main():
     similarity_matrix = load_or_compute_similarity(df_clean, RANKING_SIMILARITY_PATH, force_recompute=OVERWRITE)
     print(f"Similarity matrix successfully loaded. Shape: {similarity_matrix.shape}")
     print(similarity_matrix.head(3))
-
-    import numpy as np
-
-    sims = similarity_matrix.to_numpy()
-    upper = sims[np.triu_indices_from(sims, k=1)]
-    print(pd.Series(upper).describe())
-    print(pd.Series(upper).quantile([0.5, 0.75, 0.9, 0.95, 0.99]))
 
     # 4. Build Features
     print("\n[4] Building features...")
