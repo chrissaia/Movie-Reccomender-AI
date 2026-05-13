@@ -38,6 +38,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from collections import Counter
 from zipp import Path
 
 try:
@@ -68,6 +69,7 @@ DEFAULT_TOP_K = 10
 DEFAULT_CANDIDATE_POOL = 75
 DEFAULT_MIN_SUPPORT = 1
 RECOMMENDATION_SPLIT_WEIGHT = 0.90 # cosine_sim = RECOMMENDATION_SPLIT_WEIGHT || prediction = (RECOMMENDATION_SPLIT_WEIGHT - 1)
+MAX_TASTE_ROWS = 5
 
 if trace is not None:
     tracer = trace.get_tracer(__name__)
@@ -467,51 +469,386 @@ def _build_explanations(agg_features: dict) -> list[str]:
     return reasons[:3]
 
 
+
+def _split_pipe(value) -> list[str]:
+    """
+    Split a pipe-delimited metadata field into clean lowercase tokens.
+    Example:
+        "Drama|Thriller|Crime" -> ["drama", "thriller", "crime"]
+    """
+    if pd.isna(value) or not str(value).strip():
+        return []
+    return [part.strip().lower() for part in str(value).split("|") if part.strip()]
+
+
+def _pretty_label(value: str) -> str:
+    """
+    Convert a raw metadata token into something nicer for frontend text.
+    Example:
+        "psychological-thriller" -> "Psychological Thriller"
+    """
+    return value.replace("-", " ").strip().title()
+
+# -----------------------------------------------------
+# Taste Profile Recommendations
+# -----------------------------------------------------
+
 def _build_taste_summary(selected_movies: list[dict]) -> dict:
     """
-    Summarize the user's selected movies into simple, human-readable taste signals.
+    Build a human-readable summary of what the user's selected movies have in common.
+
+    Input:
+        selected_movies = a list of movie dicts from your DB / fetch layer
+
+    Output:
+        {
+            "top_genres": [...],
+            "top_keywords": [...],
+            "repeated_directors": [...],
+            "repeated_cast": [...],
+            "year_range": {"min": ..., "max": ...}
+        }
+
+    Important:
+    This is explanation logic, not ranking logic.
+    It helps describe the user's taste in plain English.
     """
-    genres = Counter()
-    ratings = Counter()
-    decades = Counter()
-    keywords = Counter()
+    # Counter objects let us count how often genres/keywords/etc appear across the selected movies.
+    genre_counter = Counter()
+    keyword_counter = Counter()
+    director_counter = Counter()
+    cast_counter = Counter()
 
+    # Keep track of release years so we can describe the era/range.
+    years = []
+
+    # Loop through each movie the user selected and collect metadata signals.
+    # Count all ___ across the selected movies.
     for movie in selected_movies:
-        genre_value = str(movie.get("tmdb_genres") or movie.get("genre") or "")
-        for genre in [g.strip().lower() for g in genre_value.split("|") if g.strip()]:
-            genres[genre] += 1
+        genre_counter.update(_split_pipe(movie.get("tmdb_genres", "")))
+        keyword_counter.update(_split_pipe(movie.get("tmdb_keywords", "")))
+        director_counter.update(_split_pipe(movie.get("tmdb_directors", "")))
+        cast_counter.update(_split_pipe(movie.get("tmdb_cast_top5", "")))
 
-        rating = str(movie.get("rating") or "").strip()
-        if rating:
-            ratings[rating] += 1
+        # Safely parse the year and save it if valid.
+        year = pd.to_numeric(movie.get("year"), errors="coerce")
+        if pd.notna(year):
+            years.append(int(year))
 
-        year = movie.get("year")
-        if year is not None and str(year).strip() != "":
-            decade = (int(float(year)) // 10) * 10
-            decades[f"{decade}s"] += 1
+    # Find the most common ___ overall
+    top_genres = [g for g, _ in genre_counter.most_common(3)]
+    repeated_directors = [d for d, c in director_counter.items() if c >= 2]
+    repeated_cast = [a for a, c in cast_counter.items() if c >= 2]
 
-        keyword_value = str(movie.get("tmdb_keywords") or "")
-        for keyword in [k.strip().lower() for k in keyword_value.split("|") if k.strip()]:
-            keywords[keyword] += 1
-
-    return {
-        "top_genres": [item[0] for item in genres.most_common(3)],
-        "preferred_ratings": [item[0] for item in ratings.most_common(3)],
-        "favorite_decades": [item[0] for item in decades.most_common(3)],
-        "top_keywords": [item[0] for item in keywords.most_common(5)],
+    boring_keywords = {
+        "based on novel or book",
+        "murder",
+        "friendship",
+        "dramatic",
+        "suspenseful",
+        "depressing",
+        "clinical",
+        "cruel",
+        "appreciative",
+        "exhilarated",
+        "voiceover",
+        "1980s",
+        "1940s",
+        "1950s",
     }
 
+    top_keywords = [
+        k for k, c in keyword_counter.most_common(15)
+        if k not in boring_keywords
+    ][:5]
+
+    # Build a basic min/max year range if we have usable years.
+    year_range = None
+    if years:
+        year_range = {"min": min(years), "max": max(years)}
+
+    # Return the structured summary.
+    # This is easy to inspect in logs and easy to use in headline generation.
+    return {
+        "top_genres": top_genres,
+        "top_keywords": top_keywords,
+        "repeated_directors": repeated_directors,
+        "repeated_cast": repeated_cast,
+        "year_range": year_range,
+    }
 
 def _build_headline(taste_summary: dict) -> str:
     """
-    Convert aggregated taste signals into a simple frontend-friendly headline.
+    Turn the structured taste summary into one simple frontend headline.
+
+    Priority:
+    1. Repeated director is strongest, most specific signal
+    2. Genre + keyword combo is next best
+    3. Genre-only fallback
+    4. Generic fallback if nothing useful exists
     """
-    top_genres = taste_summary.get("top_genres", [])
-    if top_genres:
-        genre = str(top_genres[0]).strip()
-        if genre:
-            return f"Because you like {genre.lower()}, here are some good {genre.lower()} movies."
-    return "Here are some movies you might like."
+    genres = taste_summary.get("top_genres", [])
+    keywords = taste_summary.get("top_keywords", [])
+    directors = taste_summary.get("repeated_directors", [])
+    casts = taste_summary.get("repeated_cast", [])
+
+    if casts:
+        actor = _pretty_label(casts[0])
+        return f"Because you like films with {actor}, here are some strong matches"
+
+    # If the same director shows up multiple times in the selected movies,
+    # that is usually a strong and very understandable pattern.
+    if directors:
+        director = _pretty_label(directors[0])
+        return f"Because you like films shaped by {director}, here are some strong matches"
+
+    # Best non-director case:
+    # use the top 2 genres plus the strongest repeated keyword/theme.
+    if len(genres) >= 2 and keywords:
+        return (
+            f"Because you like {_pretty_label(genres[0])} and "
+            f"{_pretty_label(genres[1])} stories with "
+            f"{_pretty_label(keywords[0])}, here are some strong matches"
+        )
+
+    # If no repeated keyword exists, still use the strongest 2 genres.
+    if len(genres) >= 2:
+        return (
+            f"Because you like {_pretty_label(genres[0])} and "
+            f"{_pretty_label(genres[1])} films, here are some strong matches"
+        )
+
+    # If only one genre is reliable, use that.
+    if genres:
+        return f"Because you like {_pretty_label(genres[0])} films, here are some strong matches"
+
+    # Final fallback in case metadata is weak or missing.
+    return "Here are some movies you might like"
+
+
+def _build_taste_row_signals(taste_summary: dict) -> list[dict]:
+    """
+    Build possible recommendation row signals from the user's selected movies.
+
+    Ordered by specificity:
+    1. repeated directors
+    2. repeated cast
+    3. repeated keywords/themes
+    4. genres
+
+    One master constant controls how many row candidates we generate.
+    More rows requested -> we automatically look deeper into each signal bucket.
+    """
+    signals: list[dict] = []
+
+    # Spread the signal budget across buckets.
+    director_limit = max(1, min(3, MAX_TASTE_ROWS))
+    cast_limit = max(1, min(3, MAX_TASTE_ROWS))
+    keyword_limit = max(2, MAX_TASTE_ROWS)
+    genre_limit = max(2, min(4, MAX_TASTE_ROWS))
+
+    for director in taste_summary.get("repeated_directors", [])[:2]:
+        row_summary = {
+            "top_genres": [],
+            "top_keywords": [],
+            "repeated_directors": [director],
+            "repeated_cast": [],
+            "year_range": None,
+        }
+        signals.append(
+            {
+                "kind": "director",
+                "value": director,
+                "title": _build_headline(row_summary),
+            }
+        )
+
+    for actor in taste_summary.get("repeated_cast", [])[:2]:
+        row_summary = {
+            "top_genres": [],
+            "top_keywords": [],
+            "repeated_directors": [],
+            "repeated_cast": [actor],
+            "year_range": None,
+        }
+        signals.append(
+            {
+                "kind": "cast",
+                "value": actor,
+                "title": _build_headline(row_summary),
+            }
+        )
+
+    for keyword in taste_summary.get("top_keywords", [])[:3]:
+        row_summary = {
+            "top_genres": taste_summary.get("top_genres", [])[:2],
+            "top_keywords": [keyword],
+            "repeated_directors": [],
+            "repeated_cast": [],
+            "year_range": taste_summary.get("year_range"),
+        }
+        signals.append(
+            {
+                "kind": "keyword",
+                "value": keyword,
+                "title": _build_headline(row_summary),
+            }
+        )
+
+    for genre in taste_summary.get("top_genres", [])[:2]:
+        row_summary = {
+            "top_genres": [genre],
+            "top_keywords": [],
+            "repeated_directors": [],
+            "repeated_cast": [],
+            "year_range": taste_summary.get("year_range"),
+        }
+        signals.append(
+            {
+                "kind": "genre",
+                "value": genre,
+                "title": _build_headline(row_summary),
+            }
+        )
+
+    return signals
+
+
+
+def get_constrained_row(
+    selected_movies: list[dict],
+    movie_ids: list[int],
+    signal_kind: str,
+    signal_value: str,
+    title: str,
+    top_k: int = 10,
+    candidate_pool: int = 100,
+    min_support: int = 1,
+) -> dict | None:
+    if not signal_value.strip():
+        return None
+
+    signal_value = signal_value.strip().lower()
+
+    candidates = get_combined_candidates(
+        movie_ids=movie_ids,
+        candidate_pool=candidate_pool,
+        min_support=min_support,
+    )
+
+    if not candidates:
+        return None
+
+    filtered_candidates = []
+    selected_id_set = set(movie_ids)
+
+    for candidate in candidates:
+        if int(candidate.movie_id) in selected_id_set:
+            continue
+
+        movie = candidate.movie
+
+        match = False
+        if signal_kind == "genre":
+            match = signal_value in str(movie.get("tmdb_genres", "")).lower()
+        elif signal_kind == "keyword":
+            match = signal_value in str(movie.get("tmdb_keywords", "")).lower()
+        elif signal_kind == "director":
+            match = signal_value in str(movie.get("tmdb_directors", "")).lower()
+        elif signal_kind == "cast":
+            match = signal_value in str(movie.get("tmdb_cast_top5", "")).lower()
+
+        if match:
+            filtered_candidates.append(candidate)
+
+    if not filtered_candidates:
+        return None
+
+    candidate_feature_rows: list[dict] = []
+    candidate_payload_rows: list[dict] = []
+
+    for candidate in filtered_candidates:
+        candidate_movie = candidate.movie
+
+        pair_features = [
+            _build_pair_features(source=source_movie, candidate=candidate_movie)
+            for source_movie in selected_movies
+        ]
+
+        agg_features = _aggregate_pair_features(pair_features)
+        candidate_feature_rows.append(agg_features)
+
+        vote_average = float(candidate_movie.get("tmdb_vote_average") or 0.0)
+        vote_count = float(candidate_movie.get("tmdb_vote_count") or 0.0)
+
+        candidate_payload_rows.append(
+            {
+                "movie_id": int(candidate.movie_id),
+                "title": candidate.title,
+                "combined_score": float(candidate.combined_score),
+                "support_count": int(candidate.support_count),
+                "vote_average": vote_average,
+                "vote_count": vote_count,
+                "agg_features": agg_features,
+            }
+        )
+
+    if not candidate_payload_rows:
+        return None
+
+    X = _build_ranker_frame(candidate_feature_rows)
+    ranker_scores = model.predict(X)
+
+    ranker_norm = _min_max_normalize([float(score) for score in ranker_scores])
+    vote_average_norm = _min_max_normalize([row["vote_average"] for row in candidate_payload_rows])
+    vote_count_norm = _min_max_normalize(
+        [float(np.log1p(row["vote_count"])) for row in candidate_payload_rows]
+    )
+
+    quality_norm = [
+        (0.70 * va) + (0.30 * vc)
+        for va, vc in zip(vote_average_norm, vote_count_norm)
+    ]
+
+    final_rows: list[dict] = []
+    for row, ranker_score_raw, ranker_score_norm, quality_score_norm in zip(
+        candidate_payload_rows,
+        ranker_scores,
+        ranker_norm,
+        quality_norm,
+    ):
+        final_score = (
+            0.55 * float(ranker_score_norm)
+            + 0.25 * float(row["combined_score"])
+            + 0.20 * float(quality_score_norm)
+        )
+
+        final_rows.append(
+            {
+                "movie_id": row["movie_id"],
+                "title": row["title"],
+                "combined_score": round(float(row["combined_score"]), 6),
+                "ranker_score": round(float(ranker_score_raw), 6),
+                "quality_score": round(float(quality_score_norm), 6),
+                "final_score": round(float(final_score), 6),
+                "score": round(float(final_score), 6),
+                "support_count": row["support_count"],
+                "explanations": _build_explanations(row["agg_features"]),
+            }
+        )
+
+    final_rows.sort(key=lambda item: item["final_score"], reverse=True)
+    final_rows = final_rows[:top_k]
+
+    if not final_rows:
+        return None
+
+    return {
+        "title": title,
+        "items": final_rows,
+    }
+
+
 
 # -----------------------------------------------------
 # Public Prediction Function
@@ -573,7 +910,8 @@ def predict_single(
             ranker_scores,
             ranker_norm,
     ):
-        final_score = (RECOMMENDATION_SPLIT_WEIGHT * float(cosine_score_norm)) + ((RECOMMENDATION_SPLIT_WEIGHT - 1) * float(ranker_score_norm))
+        final_score = ((RECOMMENDATION_SPLIT_WEIGHT * float(cosine_score_norm))
+                       + ((1 - RECOMMENDATION_SPLIT_WEIGHT) * float(ranker_score_norm)))
 
         recommendations.append(
             {
@@ -595,13 +933,16 @@ def predict_single(
         reverse=True,
     )[:top_k]
 
+    taste_summary = _build_taste_summary(selected_movies)
+    headline = _build_headline(taste_summary)
+
     return {
-        "movie_id": movie_id,
+        "movie_ids": movie_id,
         "top_k": top_k,
+        "headline": headline,
+        "taste_summary": taste_summary,
         "recommendations": final_recommendations,
     }
-
-
 
 
 
@@ -789,10 +1130,33 @@ def _predict_internal(
     taste_summary = _build_taste_summary(selected_movies)
     headline = _build_headline(taste_summary)
 
+    taste_rows = []
+    used_titles = set()
+
+    for signal in _build_taste_row_signals(taste_summary):
+        row = get_constrained_row(
+            selected_movies=selected_movies,
+            movie_ids=movie_ids,
+            signal_kind=signal["kind"],
+            signal_value=signal["value"],
+            title=signal["title"],
+            top_k=10,
+            candidate_pool=100,
+            min_support=1,
+        )
+
+        if row and row["title"] not in used_titles:
+            taste_rows.append(row)
+            used_titles.add(row["title"])
+
+        if len(taste_rows) == MAX_TASTE_ROWS:
+            break
+
     return {
         "movie_ids": movie_ids,
         "top_k": top_k,
         "headline": headline,
         "taste_summary": taste_summary,
+        "taste_rows": taste_rows,
         "recommendations": final_rows,
     }
