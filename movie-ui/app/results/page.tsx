@@ -1,7 +1,29 @@
 "use client";
 
+import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+type TasteSummary = {
+  top_genres?: string[];
+  top_keywords?: string[];
+  repeated_directors?: string[];
+  repeated_cast?: string[];
+  year_range?: {
+    min: number;
+    max: number;
+  } | null;
+};
+
+type CombinedResponse = {
+  headline?: string;
+  taste_summary?: TasteSummary;
+  taste_rows?: {
+    title: string;
+    items: RawRec[];
+  }[];
+  recommendations?: RawRec[];
+};
 
 type SelectedMovie = {
   movie_id: number;
@@ -28,11 +50,11 @@ type MovieDetails = {
 };
 
 type RowData = {
-  sourceTitle: string;
+  sourceTitle?: string;
+  title?: string;
   items: MovieDetails[];
 };
 
-const OMDB_API_KEY = "e07c39f3";
 const TMDB_API_KEY = "5d1421370bac86b6d373cf6be6f0e942";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 const FALLBACK_POSTER = "/no-poster.png";
@@ -153,6 +175,14 @@ export default function ResultsPage() {
   const [combined, setCombined] = useState<MovieDetails[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [listName, setListName] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+
+  const [headline, setHeadline] = useState("");
+  const [tasteSummary, setTasteSummary] = useState<TasteSummary | null>(null);
+  const [tasteRows, setTasteRows] = useState<RowData[]>([]);
+
   useEffect(() => {
     const raw = localStorage.getItem("selectedMovies");
     if (!raw) {
@@ -173,7 +203,11 @@ export default function ResultsPage() {
             top_k: 10,
           }),
         });
-        const combinedData = await combinedRes.json();
+        const combinedData: CombinedResponse = await combinedRes.json();
+        console.log("combinedData", combinedData);
+
+        setHeadline(combinedData.headline || "");
+        setTasteSummary(combinedData.taste_summary || null);
 
         const combinedRaw: RawRec[] = Array.isArray(combinedData)
           ? combinedData
@@ -183,6 +217,17 @@ export default function ResultsPage() {
 
         const combinedItems = await Promise.all(combinedRaw.map(enrichMovie));
         setCombined(combinedItems);
+        const loadedTasteRows: RowData[] = await Promise.all(
+        (combinedData.taste_rows || []).map(async (row) => {
+            const items = await Promise.all((row.items || []).map(enrichMovie));
+            return {
+              title: row.title,
+              items,
+            };
+          })
+        );
+
+        setTasteRows(loadedTasteRows);
 
         const loadedRows = await Promise.all(
           parsed.map(async (movie) => {
@@ -191,7 +236,7 @@ export default function ResultsPage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 movie_id: movie.movie_id,
-                top_k: 5,
+                top_k: 7,
               }),
             });
 
@@ -223,6 +268,30 @@ export default function ResultsPage() {
     load();
   }, [router]);
 
+  const saveList = () => {
+    const trimmed = listName.trim();
+    if (!trimmed || selected.length === 0) return;
+
+    const existing = localStorage.getItem("savedMovieLists");
+    const parsed = existing ? JSON.parse(existing) : [];
+
+    const newList = {
+      id: crypto.randomUUID(),
+      name: trimmed,
+      movies: selected,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [newList, ...parsed];
+    localStorage.setItem("savedMovieLists", JSON.stringify(updated));
+
+    setSaveMessage(`Saved "${trimmed}"`);
+    setShowSaveModal(false);
+    setListName("");
+
+    setTimeout(() => setSaveMessage(""), 2500);
+  };
+
   return (
     <main className="results-page">
       <style>{`
@@ -237,7 +306,30 @@ export default function ResultsPage() {
           margin: 0 auto;
         }
 
-        .back-btn {
+        .top-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 24px;
+        }
+
+        .top-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .top-user {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .back-btn,
+        .pill-btn,
+        .save-btn {
           border: 1px solid rgba(255,255,255,0.12);
           background: rgba(255,255,255,0.06);
           color: #e2e8f0;
@@ -245,7 +337,12 @@ export default function ResultsPage() {
           padding: 10px 16px;
           cursor: pointer;
           font-weight: 700;
-          margin-bottom: 24px;
+        }
+
+        .back-btn:hover,
+        .pill-btn:hover,
+        .save-btn:hover {
+          background: rgba(255,255,255,0.10);
         }
 
         .hero-title {
@@ -264,11 +361,56 @@ export default function ResultsPage() {
           margin-bottom: 24px;
         }
 
+        .selected-row {
+          margin-bottom: 30px;
+        }
+
         .chip-wrap {
           display: flex;
           flex-wrap: wrap;
           gap: 10px;
-          margin-bottom: 30px;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .save-side {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 8px;
+          flex: 0 0 auto;
+        }
+
+        .save-list-primary {
+          border: none;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: white;
+          border-radius: 999px;
+          padding: 10px 18px;
+          cursor: pointer;
+          font-weight: 700;
+          box-shadow: 0 14px 30px rgba(37, 99, 235, 0.24);
+        }
+
+        .save-list-primary:hover {
+          filter: brightness(1.05);
+        }
+
+        .save-msg {
+          color: #93c5fd;
+          font-size: 14px;
+          font-weight: 700;
+        }
+
+        @media (max-width: 900px) {
+          .selected-row {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .save-side {
+            align-items: flex-start;
+          }
         }
 
         .chip {
@@ -278,6 +420,20 @@ export default function ResultsPage() {
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,0.08);
           font-weight: 600;
+        }
+
+        .save-list-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 30px;
+          flex-wrap: wrap;
+        }
+
+        .save-msg {
+          color: #93c5fd;
+          font-size: 14px;
+          font-weight: 700;
         }
 
         .row-toggle {
@@ -402,40 +558,301 @@ export default function ResultsPage() {
           color: #cbd5e1;
           font-size: 18px;
         }
+
+        .modal-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(2,6,23,0.72);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 100;
+        }
+
+        .modal-card {
+          width: min(460px, calc(100vw - 32px));
+          background: #0f172a;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 20px;
+          padding: 22px;
+          box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+        }
+
+        .modal-title {
+          color: #f8fafc;
+          font-size: 22px;
+          font-weight: 800;
+          margin: 0 0 10px 0;
+        }
+
+        .modal-sub {
+          color: rgba(255,255,255,0.72);
+          font-size: 14px;
+          margin-bottom: 16px;
+        }
+
+        .modal-input {
+          width: 100%;
+          padding: 14px 16px;
+          border-radius: 14px;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.06);
+          color: #f8fafc;
+          outline: none;
+          font-size: 16px;
+          margin-bottom: 16px;
+        }
+
+        .modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+
+        .modal-secondary {
+          border: 1px solid rgba(255,255,255,0.12);
+          background: transparent;
+          color: #cbd5e1;
+          border-radius: 999px;
+          padding: 10px 16px;
+          cursor: pointer;
+          font-weight: 700;
+        }
+
+        .modal-primary {
+          border: none;
+          background: linear-gradient(135deg, #3b82f6, #2563eb);
+          color: white;
+          border-radius: 999px;
+          padding: 10px 16px;
+          cursor: pointer;
+          font-weight: 700;
+        }
+
+        @media (max-width: 640px) {
+          .top-bar {
+            flex-direction: row;
+            align-items: center;
+          }
+
+          .top-actions {
+            flex-wrap: wrap;
+          }
+        }
+
+        .taste-panel {
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.05);
+          border-radius: 24px;
+          padding: 20px;
+          margin-bottom: 28px;
+          box-shadow: 0 16px 40px rgba(0,0,0,0.28);
+        }
+
+        .taste-title {
+          color: #f8fafc;
+          font-size: 22px;
+          font-weight: 800;
+          margin: 0 0 10px 0;
+        }
+
+        .taste-headline {
+          color: #dbeafe;
+          font-size: 16px;
+          font-weight: 600;
+          line-height: 1.6;
+          margin-bottom: 16px;
+        }
+
+        .taste-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .taste-chip {
+          background: rgba(255,255,255,0.08);
+          color: #e2e8f0;
+          padding: 10px 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.08);
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .taste-panel {
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.05);
+          border-radius: 24px;
+          padding: 20px;
+          margin-bottom: 28px;
+          box-shadow: 0 16px 40px rgba(0,0,0,0.28);
+        }
+
+        .taste-title {
+          color: #f8fafc;
+          font-size: 22px;
+          font-weight: 800;
+          margin: 0 0 10px 0;
+        }
+
+        .taste-headline {
+          color: #dbeafe;
+          font-size: 16px;
+          font-weight: 600;
+          line-height: 1.6;
+          margin-bottom: 16px;
+        }
+
+        .taste-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .taste-chip {
+          background: rgba(255,255,255,0.08);
+          color: #e2e8f0;
+          padding: 10px 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.08);
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .hero-meta-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 24px;
+        }
+
+        .hero-sub {
+          color: rgba(255,255,255,0.72);
+          font-size: 17px;
+          margin-bottom: 0;
+        }
+
+        .hero-actions {
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+          gap: 12px;
+          flex: 0 0 auto;
+        }
+
       `}</style>
 
       <div className="results-wrap">
-        <button className="back-btn" onClick={() => router.push("/")}>
-          ← Back
-        </button>
+        <div className="top-bar">
+          <div className="top-actions">
+            <button className="back-btn" onClick={() => router.push("/")}>
+              ← Back
+            </button>
+          </div>
 
-        <h1 className="hero-title">Your Movie Matches</h1>
-        <p className="hero-sub">Hover a poster to see details.</p>
 
-        <div className="chip-wrap">
-          {selected.map((movie) => (
-            <div key={movie.movie_id} className="chip">
-              {movie.title}
-            </div>
-          ))}
+          <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
+            <button
+              onClick={() => router.push("/lists")}
+              className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold"
+            >
+              My Lists
+            </button>
+            <Show
+              when="signed-out"
+              fallback={<UserButton />}
+            >
+              <SignInButton mode="modal">
+                <button className="pill-btn">Sign In</button>
+              </SignInButton>
+            </Show>
+          </div>
         </div>
+        <h1 className="hero-title">Your Movie Matches</h1>
+        <div className="hero-meta-row">
+          <p className="hero-sub">Hover a poster to see details.</p>
+          <div className="hero-actions">
+            <Show
+              when="signed-out"
+              fallback={
+                <button className="save-list-primary" onClick={() => setShowSaveModal(true)}>
+                  Save List
+                </button>
+              }
+            >
+              <SignInButton mode="modal">
+                <button className="save-list-primary">Sign in to Save</button>
+              </SignInButton>
+            </Show>
 
+            {saveMessage && <div className="save-msg">{saveMessage}</div>}
+          </div>
+        </div>
+        <div className="selected-row">
+          <div className="chip-wrap">
+            {selected.map((movie) => (
+              <div key={movie.movie_id} className="chip">
+                {movie.title}
+              </div>
+            ))}
+          </div>
+        </div>
         {loading ? (
           <div className="loading">Loading recommendations...</div>
         ) : (
           <>
-            {combined.length > 0 && (
-              <MovieRow title="Top Picks For You" items={combined} />
-            )}
+              {combined.length > 0 && (
+                <MovieRow title="Top Picks For You" items={combined} />
+              )}
 
-            {rows.map((row) => (
-              <MovieRow
-                key={row.sourceTitle}
-                title={`Because you liked ${row.sourceTitle}`}
-                items={row.items}
+              {tasteRows.map((row, i) => (
+                <MovieRow
+                  key={`${row.title}-${i}`}
+                  title={row.title || "Because you like this"}
+                  items={row.items}
+                />
+              ))}
+
+              {rows.map((row) => (
+                <MovieRow
+                  key={row.sourceTitle}
+                  title={`Because you liked ${row.sourceTitle}`}
+                  items={row.items}
+                />
+              ))}
+            </>
+        )}
+
+        {showSaveModal && (
+          <div className="modal-backdrop" onClick={() => setShowSaveModal(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+              <h3 className="modal-title">Save this movie list</h3>
+              <div className="modal-sub">
+                Save your selected favorites as a named list.
+              </div>
+
+              <input
+                className="modal-input"
+                value={listName}
+                onChange={(e) => setListName(e.target.value)}
+                placeholder="e.g. Drama with friends"
               />
-            ))}
-          </>
+
+              <div className="modal-actions">
+                <button
+                  className="modal-secondary"
+                  onClick={() => setShowSaveModal(false)}
+                >
+                  Cancel
+                </button>
+                <button className="modal-primary" onClick={saveList}>
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </main>
