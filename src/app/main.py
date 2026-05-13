@@ -34,6 +34,22 @@ class CombinedRecommendRequest(BaseModel):
     movie_ids: list[int]
     top_k: int = 10
 
+class TasteRowItem(BaseModel):
+    movie_id: int
+    title: str
+    score: float | None = None
+
+class TasteRow(BaseModel):
+    title: str
+    items: list[TasteRowItem]
+
+class CombinedRecommendationResponse(BaseModel):
+    movie_ids: list[int]
+    top_k: int
+    headline: str | None = None
+    taste_summary: dict | None = None
+    taste_rows: list[TasteRow] = []
+    recommendations: list[dict]
 
 
 
@@ -71,23 +87,14 @@ def recommend_by_movie(req: RecommendRequest):
 
 
 
-
-@app.post("/recommend/combined")
+@app.post("/recommend/combined", response_model=CombinedRecommendationResponse)
 def recommend_combined(req: CombinedRecommendRequest):
     try:
-        result = predict_combined(
+        return predict_combined(
             movie_ids=req.movie_ids,
             top_k=req.top_k,
             min_support=1,
         )
-
-        return {
-            "movie_ids": result["movie_ids"],
-            "top_k": result["top_k"],
-            "headline": result.get("headline"),
-            "taste_summary": result.get("taste_summary"),
-            "recommendations": result["recommendations"],
-        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
