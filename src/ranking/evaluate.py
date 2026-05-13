@@ -57,7 +57,7 @@ def evaluate_model(model, X_test, y_test, qid_test, X_train) -> tuple[np.ndarray
 
     metrics = {
         "predict_time": predict_time,
-        "lgbm_ndcg_10:": lgbm_ndcg,
+        "lgbm_ndcg_10": lgbm_ndcg,
     }
 
     importance = pd.DataFrame({
