@@ -1,5 +1,6 @@
 "use client";
 
+import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -117,6 +118,24 @@ export default function Home() {
           "linear-gradient(135deg, #020617 0%, #0f172a 35%, #1e3a8a 100%)",
       }}
     >
+    <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
+      <button
+        onClick={() => router.push("/lists")}
+        className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold"
+      >
+        My Lists
+      </button>
+      <Show
+        when="signed-out"
+        fallback={<UserButton />}
+      >
+        <SignInButton mode="modal">
+          <button className="rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-medium text-white backdrop-blur hover:bg-white/15">
+            Sign In
+          </button>
+        </SignInButton>
+      </Show>
+    </div>
       <div style={{ width: "100%", maxWidth: 900, textAlign: "center" }}>
         <h1
           style={{
