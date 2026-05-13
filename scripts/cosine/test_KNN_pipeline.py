@@ -25,7 +25,7 @@ from src.utils.paths import (
     COSINE_FEATURES_PATH,
 )
 
-OVERWRITE = False
+OVERWRITE = True
 
 
 def parse_args() -> argparse.Namespace:

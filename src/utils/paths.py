@@ -33,7 +33,15 @@ QID_TEST_PATH = RANKING_DIR / "QID_test.csv"
 
 # Models
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
+FEATURE_COLUMNS_PATH = ARTIFACTS_DIR / "feature_columns.json"
+
 
 # Database
 DB_DIR = DATA_DIR / "db"
 SQLITE_DB_PATH = DB_DIR / "movies.db"
+
+# Serving
+SERVING_MODEL_DIR = PROJECT_ROOT / "src" / "serving" / "models"
+SERVING_MODEL_ARTIFACTS_DIR = SERVING_MODEL_DIR.glob("m-*/artifacts/")
+
+

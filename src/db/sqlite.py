@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 def get_connection(db_path: str | Path) -> sqlite3.Connection:
+
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 

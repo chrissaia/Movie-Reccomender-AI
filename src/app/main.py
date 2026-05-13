@@ -1,13 +1,17 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from src.serving.recommend import (
     get_recommendations,
     search_movies,
-    get_combined_recommendations,
     recommendation_to_dict,
     search_result_to_dict,
+)
+
+from src.serving.inference import (
+    predict_combined,
+    predict_single,
 )
 
 app = FastAPI()
@@ -31,41 +35,60 @@ class CombinedRecommendRequest(BaseModel):
     top_k: int = 10
 
 
-@app.get("/recommend/{movie_id}")
-def recommend(movie_id: int, top_k: int = 5):
-    results = get_recommendations(movie_id, top_k)
-    return {
-        "movie_id": movie_id,
-        "top_k": top_k,
-        "recommendations": [recommendation_to_dict(rec) for rec in results],
-    }
 
 
 @app.get("/movies/search")
 def search(q: str, limit: int = 10):
-    results = search_movies(q, limit)
-    return [search_result_to_dict(result) for result in results]
+    try:
+        results = search_movies(q, limit)
+        return [search_result_to_dict(result) for result in results]
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {e}") from e
+
+
+
+@app.get("/recommend/{movie_id}")
+def recommend(movie_id: int, top_k: int = 5):
+    try:
+        return predict_single(movie_id=movie_id, top_k=top_k)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {e}") from e
+
 
 
 @app.post("/recommend/by-movie")
 def recommend_by_movie(req: RecommendRequest):
-    results = get_recommendations(req.movie_id, req.top_k)
-    return {
-        "movie_id": req.movie_id,
-        "top_k": req.top_k,
-        "recommendations": [recommendation_to_dict(rec) for rec in results],
-    }
+    try:
+        return predict_single(movie_id=req.movie_id, top_k=req.top_k)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {e}") from e
+
+
 
 
 @app.post("/recommend/combined")
 def recommend_combined(req: CombinedRecommendRequest):
-    results = get_combined_recommendations(
-        movie_ids=req.movie_ids,
-        top_k=req.top_k,
-        min_support=1,
-    )
-    return {
-        "movie_ids": req.movie_ids,
-        "top_k": req.top_k,
-        "recommendations": [recommendation_to_dict(rec) for rec in results],
-    }
+    try:
+        result = predict_combined(
+            movie_ids=req.movie_ids,
+            top_k=req.top_k,
+            min_support=1,
+        )
+
+        return {
+            "movie_ids": result["movie_ids"],
+            "top_k": result["top_k"],
+            "headline": result.get("headline"),
+            "taste_summary": result.get("taste_summary"),
+            "recommendations": result["recommendations"],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Combined recommendation failed: {e}") from e

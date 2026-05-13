@@ -17,6 +17,7 @@ import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
+from collections import OrderedDict
 
 import mlflow
 import mlflow.sklearn
@@ -35,6 +36,11 @@ from src.ranking.build_dataset import build_dataset
 from src.ranking.tune import tune_model
 from src.ranking.train import train_model
 from src.ranking.evaluate import evaluate_model
+from src.db.sqlite import get_connection
+from src.cosine.neighbors import build_topk_neighbors
+from src.db.schema import ALL_SCHEMA_STATEMENTS
+from src.db.repository import init_schema, replace_movies, replace_neighbors
+
 
 from src.utils.paths import (
     PROJECT_ROOT,
@@ -50,6 +56,7 @@ from src.utils.paths import (
     QID_TRAIN_PATH,
     QID_TEST_PATH,
     ARTIFACTS_DIR,
+    SQLITE_DB_PATH,
 )
 
 
@@ -86,7 +93,7 @@ def save_json(obj: Dict[str, Any], output_path: Path) -> None:
         json.dump(obj, f, indent=2)
 
 
-def mlflow_log_model_safe(model: Any, name_or_path: str = "model") -> None:
+def mlflow_log_model_safe(model: Any, name_or_path: str = "models") -> None:
     try:
         mlflow.sklearn.log_model(sk_model=model, name=name_or_path)
     except TypeError:
@@ -106,6 +113,7 @@ def run_cosine_pipeline(args: argparse.Namespace) -> None:
 
         log.info("Preprocessing...")
         df = preprocess_data(df)
+        movies_df = df.copy()
 
         log.info("Building cosine features...")
         df_features, movie_names = build_cosine_features(df)
@@ -140,10 +148,77 @@ def run_cosine_pipeline(args: argparse.Namespace) -> None:
         mlflow.log_param("n_features", int(df_features.shape[1]))
         mlflow.log_text(json.dumps(summary, indent=2), artifact_file="cosine_summary.json")
 
+
+        # --------------- KNN ---------------
+        log.info("Building top-k neighbor table...")
+        neighbors_df = build_topk_neighbors(similarity_matrix=sim_df, top_k=args.top_k)
+
+        print("Rebuilding aligned movies metadata...")
+        movies_df.columns = movies_df.columns.str.strip()
+
+        numeric_votes = pd.to_numeric(movies_df["votes"], errors="coerce").fillna(0)
+        movies_df = movies_df.loc[numeric_votes > 5000].copy()
+        movies_df = movies_df.reset_index(drop=True)
+
+        movies_df = movies_df.loc[
+            :,
+            [
+                "name",
+                "year",
+                "genre",
+                "director",
+                "writer",
+                "star",
+                "country",
+                "rating",
+                "company",
+                "score",
+                "votes",
+                "budget",
+                "gross",
+                "runtime",
+                "tmdb_found",
+                "tmdb_id",
+                "tmdb_title",
+                "tmdb_original_title",
+                "tmdb_release_date",
+                "tmdb_overview",
+                "tmdb_genres",
+                "tmdb_keywords",
+                "tmdb_cast_top5",
+                "tmdb_directors",
+                "tmdb_writers",
+                "tmdb_popularity",
+                "tmdb_vote_average",
+                "tmdb_vote_count",
+                "tmdb_runtime",
+                "tmdb_original_language",
+                "tmdb_production_companies",
+                "tmdb_production_countries",
+                "tmdb_spoken_languages",
+            ],
+        ].copy()
+
+        movies_df.insert(0, "movie_id", range(len(movies_df)))
+
+
+        log.info("Writing to SQLite...")
+        conn = get_connection(SQLITE_DB_PATH)
+        try:
+            init_schema(conn, ALL_SCHEMA_STATEMENTS)
+            conn.execute("DELETE FROM movie_neighbors;")
+            conn.execute("DELETE FROM movies;")
+
+            replace_movies(conn, movies_df)
+            replace_neighbors(conn, neighbors_df)
+        finally:
+            conn.close()
+
         print("\nCosine pipeline complete.")
         print(f"Movies: {len(movie_names)}")
         print(f"Features: {df_features.shape[1]}")
         print(f"Similarity matrix shape: {sim_df.shape}")
+
 
 
 def run_ranking_pipeline(args: argparse.Namespace) -> None:
@@ -152,7 +227,6 @@ def run_ranking_pipeline(args: argparse.Namespace) -> None:
     base_params: Dict[str, Any] = {
         "objective": "lambdarank",
         "metric": "ndcg",
-        "ndcg_at": [10],
         "boosting_type": "gbdt",
         "random_state": args.seed,
         "n_jobs": -1,
@@ -186,55 +260,60 @@ def run_ranking_pipeline(args: argparse.Namespace) -> None:
         log.info("Preprocessing...")
         df = preprocess_data(df)
 
+
         log.info("Computing/loading ranking similarity matrix...")
         sim_df = ranking_similarity_matrix(
             df_features=df,
             output_path=RANKING_SIMILARITY_PATH,
             force_recompute=args.force_recompute,
         )
-        sim_df.to_csv(RANKING_SIMILARITY_PATH, index=True)
-        mlflow.log_artifact(str(RANKING_SIMILARITY_PATH), artifact_path="processed/ranking")
 
+        ranking_paths = [X_TRAIN_PATH, X_TEST_PATH, Y_TRAIN_PATH, Y_TEST_PATH, QID_TRAIN_PATH, QID_TEST_PATH]
         log.info("Building ranking dataset...")
-        X, y, qid = build_dataset(
-            df=df,
-            similarity_matrix=sim_df,
-            top_k=args.top_k,
-            min_similarity=args.min_similarity,
-        )
+        if all(p.exists() for p in ranking_paths) and not args.force_recompute:
+            log.info("Files already exist. Loading...")
 
-        X = pd.DataFrame(X)
-        y = flatten_1d(y)
-        qid = flatten_1d(qid)
+            # Use list comprehension to call load_data on each path individually
+            X_train, X_test, y_train, y_test, qid_train, qid_test = (load_data(p) for p in ranking_paths)
 
-        if len(X) != len(y) or len(X) != len(qid):
-            raise ValueError("X, y, and qid must have the same length")
+            y_train = y_train.to_numpy()
+            y_test = y_test.to_numpy()
+            qid_train = qid_train.to_numpy()
+            qid_test = qid_test.to_numpy()
 
-        log.info("Splitting ranking dataset...")
-        X_train, X_test, y_train, y_test, qid_train, qid_test = group_train_test_split(
-            X, y, qid, test_size=args.test_size, random_state=args.seed
-        )
+        else:
+            log.info("Building ranking dataset...")
+            X, y, qid = build_dataset(
+                df=df,
+                similarity_matrix=sim_df,
+                top_k=args.top_k,
+                min_similarity=args.min_similarity,
+            )
+
+            X = pd.DataFrame(X)
+            y = flatten_1d(y)
+            qid = flatten_1d(qid)
+
+            if len(X) != len(y) or len(X) != len(qid):
+                raise ValueError("X, y, and qid must have the same length")
+
+            log.info("Splitting ranking dataset...")
+            X_train, X_test, y_train, y_test, qid_train, qid_test = group_train_test_split(
+                X, y, qid, test_size=args.test_size, random_state=args.seed
+            )
 
         y_train = flatten_1d(y_train)
         y_test = flatten_1d(y_test)
         qid_train = flatten_1d(qid_train)
         qid_test = flatten_1d(qid_test)
 
-        ensure_dir(X_TRAIN_PATH.parent)
+        feature_columns = X_train.columns.tolist()
+        ensure_dir(ARTIFACTS_DIR)
+        params_path = ARTIFACTS_DIR / "feature_columns.json"
+        with params_path.open("w") as f:
+            json.dump(feature_columns, f, indent=2)
+        mlflow.log_text(json.dumps(feature_columns, indent=2), artifact_file="feature_columns.json")
 
-        X_train.to_csv(X_TRAIN_PATH, index=False)
-        X_test.to_csv(X_TEST_PATH, index=False)
-        pd.DataFrame({"label": y_train}).to_csv(Y_TRAIN_PATH, index=False, header=True)
-        pd.DataFrame({"label": y_test}).to_csv(Y_TEST_PATH, index=False, header=True)
-        pd.DataFrame({"qid": qid_train}).to_csv(QID_TRAIN_PATH, index=False, header=True)
-        pd.DataFrame({"qid": qid_test}).to_csv(QID_TEST_PATH, index=False, header=True)
-
-        mlflow.log_artifact(str(X_TRAIN_PATH), artifact_path="processed/ranking")
-        mlflow.log_artifact(str(X_TEST_PATH), artifact_path="processed/ranking")
-        mlflow.log_artifact(str(Y_TRAIN_PATH), artifact_path="processed/ranking")
-        mlflow.log_artifact(str(Y_TEST_PATH), artifact_path="processed/ranking")
-        mlflow.log_artifact(str(QID_TRAIN_PATH), artifact_path="processed/ranking")
-        mlflow.log_artifact(str(QID_TEST_PATH), artifact_path="processed/ranking")
 
         mlflow.log_param("train_rows", len(X_train))
         mlflow.log_param("test_rows", len(X_test))
@@ -263,36 +342,33 @@ def run_ranking_pipeline(args: argparse.Namespace) -> None:
             mlflow.log_metric("tune_time_seconds", tune_time)
             mlflow.log_params({f"lgbm__best__{k}": v for k, v in best_params.items()})
 
-        log.info("Training ranking model...")
+        log.info("Training ranking models...")
         train_start = time.time()
         model = train_model(X_train, y_train, qid_train, final_params)
         train_time = time.time() - train_start
         mlflow.log_metric("train_time_seconds", train_time)
 
-        log.info("Evaluating ranking model...")
+        log.info("Evaluating ranking models...")
         eval_start = time.time()
         scores, metrics, importance = evaluate_model(model, X_test, y_test, qid_test, X_train)
         eval_time = time.time() - eval_start
         mlflow.log_metric("eval_time_seconds", eval_time)
 
-        print("\nFeature importance:")
-        print(importance)
-
         for k, v in metrics.items():
             mlflow.log_metric(k, float(v))
 
 
-        for _, row in importance.iterrows():
-            feature = row["feature"]
-            score = row["importance"]
-
-            mlflow.log_metric(f"importance_{feature}", float(score))
+        print("\nFeature importance:")
+        print(importance)
+        mlflow.log_dict(importance.to_dict(into=OrderedDict), artifact_file="feature_importance.json")
 
 
         ensure_dir(ARTIFACTS_DIR)
         params_path = ARTIFACTS_DIR / "ranking_best_params.json"
         save_json(final_params, params_path)
-        mlflow.log_artifact(str(params_path), artifact_path="artifacts")
+        mlflow.log_dict(final_params, artifact_file="ranking_best_params.json")
+
+
 
         mlflow_log_model_safe(model, "ranking_model")
 
@@ -306,7 +382,8 @@ def run_ranking_pipeline(args: argparse.Namespace) -> None:
             "metrics": metrics,
             "params": final_params,
         }
-        mlflow.log_text(json.dumps(summary, indent=2), artifact_file="ranking_summary.json")
+
+        mlflow.log_dict(summary, artifact_file="ranking_summary.json")
 
         print("\nRanking pipeline complete.")
         for k, v in metrics.items():
@@ -383,7 +460,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--tune_trials",
         type=int,
-        default=10,
+        default=20,
         help="Number of Optuna trials",
     )
     p.add_argument(

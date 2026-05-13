@@ -41,12 +41,12 @@ def main():
     print(f"Best parameters achieved. Shape: {best_params}")
 
     # 3. Train
-    print("\n[3] Training model...")
+    print("\n[3] Training models...")
     model = train_model(X_train, y_train, qid_train, best_params)
     print(f"Model trained")
 
     # 4. Build Features
-    print("\n[4] Evaluate model...")
+    print("\n[4] Evaluate models...")
     scores, metrics, importance = evaluate_model(model, X_test, y_test, qid_test, X_train)
     print(f"Model scores: {scores}")
     print(f"Model metrics: {metrics}")

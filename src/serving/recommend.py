@@ -203,37 +203,21 @@ def get_recommendations(movie_id: int, top_k: int = DEFAULT_RECOMMEND_LIMIT) -> 
 # Combined Recommendations
 # -----------------------------------------------------
 
-def get_combined_recommendations(
+@dataclass(frozen=True)
+class CombinedCandidate:
+    movie_id: int
+    title: str
+    combined_score: float
+    support_count: int
+    source_movie_ids: list[int]
+    movie: dict
+
+def get_combined_candidates(
     movie_ids: list[int],
-    top_k: int = DEFAULT_RECOMMEND_LIMIT,
     candidate_pool: int = COMBINED_CANDIDATE_POOL,
     min_support: int | None = None,
-) -> list[Recommendation]:
-    """
-    Build combined recommendations from multiple source movies.
-
-    Strategy:
-    1. Pull a wider candidate set per source movie
-    2. Aggregate by candidate movie_id
-    3. Reward:
-       - higher cosine similarity
-       - appearing for multiple selected movies
-       - stronger rank positions
-    4. Penalize one-off neighbors dominating the list
-
-    Final score:
-        final_score =
-            (avg_similarity * 0.55) +
-            (support_ratio * 0.35) +
-            (avg_rank_score * 0.10)
-
-    Where:
-    - avg_similarity = mean cosine score across supporting source movies
-    - support_ratio = support_count / number of selected movies
-    - avg_rank_score = mean(1 / rank)
-    """
+) -> list[CombinedCandidate]:
     cleaned_movie_ids = _validate_movie_ids(movie_ids)
-    _validate_positive_int(top_k, "top_k")
     _validate_positive_int(candidate_pool, "candidate_pool")
 
     if min_support is None:
@@ -245,9 +229,37 @@ def get_combined_recommendations(
     SELECT
         mn.source_movie_id,
         mn.neighbor_movie_id,
-        m.name AS title,
         mn.cosine_score,
-        mn.rank
+        mn.rank,
+        m.movie_id,
+        m.name,
+        m.year,
+        m.score,
+        m.votes,
+        m.budget,
+        m.gross,
+        m.runtime,
+        m.director,
+        m.writer,
+        m.star,
+        m.country,
+        m.company,
+        m.genre,
+        m.rating,
+        m.tmdb_genres,
+        m.tmdb_keywords,
+        m.tmdb_cast_top5,
+        m.tmdb_directors,
+        m.tmdb_writers,
+        m.tmdb_overview,
+        m.tmdb_popularity,
+        m.tmdb_vote_average,
+        m.tmdb_vote_count,
+        m.tmdb_runtime,
+        m.tmdb_original_language,
+        m.tmdb_production_companies,
+        m.tmdb_production_countries,
+        m.tmdb_spoken_languages
     FROM movie_neighbors mn
     JOIN movies m
       ON mn.neighbor_movie_id = m.movie_id
@@ -262,7 +274,7 @@ def get_combined_recommendations(
 
     aggregated: dict[int, dict] = defaultdict(
         lambda: {
-            "title": "",
+            "movie": None,
             "scores": [],
             "rank_scores": [],
             "ranks": [],
@@ -273,53 +285,53 @@ def get_combined_recommendations(
     for row in rows:
         candidate_id = row["neighbor_movie_id"]
         source_movie_id = row["source_movie_id"]
-        title = row["title"]
         cosine_score = float(row["cosine_score"])
         rank = int(row["rank"])
 
         entry = aggregated[candidate_id]
-        entry["title"] = title
+        entry["movie"] = dict(row)
         entry["scores"].append(cosine_score)
         entry["rank_scores"].append(1.0 / rank)
         entry["ranks"].append(rank)
         entry["source_movie_ids"].add(source_movie_id)
 
-    ranked: list[Recommendation] = []
+    candidates: list[CombinedCandidate] = []
     total_sources = len(cleaned_movie_ids)
 
     for candidate_id, data in aggregated.items():
         support_count = len(data["source_movie_ids"])
-
         if support_count < min_support:
             continue
 
         avg_similarity = sum(data["scores"]) / len(data["scores"])
         avg_rank_score = sum(data["rank_scores"]) / len(data["rank_scores"])
         support_ratio = support_count / total_sources
-
         best_rank = min(data["ranks"])
 
-        # penalty if it is already very high in an individual row
-        # rank 1 gets biggest penalty, deeper ranks get less
         individual_overlap_penalty = max(0.0, (11 - best_rank) / 10) * 0.20
 
-        final_score = (
-                (avg_similarity * 0.50) +
-                (support_ratio * 0.35) +
-                (avg_rank_score * 0.15) -
-                individual_overlap_penalty
+        combined_score = (
+            (avg_similarity * 0.50) +
+            (support_ratio * 0.35) +
+            (avg_rank_score * 0.15) -
+            individual_overlap_penalty
         )
 
-        ranked.append(
-            Recommendation(
+        movie_row = data["movie"]
+
+        candidates.append(
+            CombinedCandidate(
                 movie_id=candidate_id,
-                title=data["title"],
-                score=final_score,
+                title=movie_row["name"],
+                combined_score=combined_score,
+                support_count=support_count,
+                source_movie_ids=sorted(data["source_movie_ids"]),
+                movie=movie_row,
             )
         )
 
-    ranked.sort(key=lambda rec: rec.score, reverse=True)
-    return ranked[:top_k]
+    candidates.sort(key=lambda c: c.combined_score, reverse=True)
+    return candidates
 
 
 # -----------------------------------------------------

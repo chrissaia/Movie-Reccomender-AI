@@ -21,7 +21,7 @@ def _make_group_sizes(qids: np.ndarray) -> list[int]:
 
 def tune_model(X, y, qid, n_trials: int = 10, n_splits: int = 3, seed: int = 42):
     """
-    Tune a LightGBM LambdaRank model with Optuna using GroupKFold CV.
+    Tune a LightGBM LambdaRank models with Optuna using GroupKFold CV.
 
     Parameters
     ----------

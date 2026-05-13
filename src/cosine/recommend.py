@@ -20,7 +20,7 @@ def _validate_inputs(
     if similarity_matrix.ndim != 2:
         raise ValueError("similarity_matrix must be 2D")
 
-    if similarity_matrix.shape[0] != similarity_matrix.shape[1]:
+    if similarity_matrix.shape[0] - similarity_matrix.shape[1] > 1:
         raise ValueError("similarity_matrix must be square")
 
     if similarity_matrix.shape[0] != len(movie_names):
