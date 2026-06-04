@@ -38,8 +38,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from collections import Counter
-from zipp import Path
 
 try:
     from opentelemetry import trace
@@ -68,8 +66,12 @@ FEATURE_COLUMNS_PATH = MODEL_DIR / "feature_columns.json"
 DEFAULT_TOP_K = 10
 DEFAULT_CANDIDATE_POOL = 75
 DEFAULT_MIN_SUPPORT = 1
+
 RECOMMENDATION_SPLIT_WEIGHT = 0.90 # cosine_sim = RECOMMENDATION_SPLIT_WEIGHT || prediction = (RECOMMENDATION_SPLIT_WEIGHT - 1)
-MAX_TASTE_ROWS = 5
+MAX_TASTE_ROWS = 4 # the amount of taste profile rows show
+ORGANIZED_ROW_TOP_K = 10 # changes the amount of movies show in the row of the TASTE summary
+SOURCE_MOVIE_ROW_TOP_K = 7 # changes the amount of movies show in the row of their selected movies
+MAX_DYNAMIC_ORGANIZED_ROWS = 25 # changes the amount of rows
 
 if trace is not None:
     tracer = trace.get_tracer(__name__)
@@ -466,6 +468,9 @@ def _build_explanations(agg_features: dict) -> list[str]:
     if agg_features.get("company_overlap", 0.0) >= 1:
         reasons.append("shared studio/company signal")
 
+    if not reasons:
+        reasons.append("similar story patterns and audience profile")
+
     return reasons[:3]
 
 
@@ -555,6 +560,14 @@ def _build_taste_summary(selected_movies: list[dict]) -> dict:
         "1980s",
         "1940s",
         "1950s",
+        "woman director",
+        "independent film",
+        "duringcreditsstinger",
+        "aftercreditsstinger",
+        "sequel",
+        "violence",
+        "death",
+        "love",
     }
 
     top_keywords = [
@@ -575,6 +588,13 @@ def _build_taste_summary(selected_movies: list[dict]) -> dict:
         "repeated_directors": repeated_directors,
         "repeated_cast": repeated_cast,
         "year_range": year_range,
+
+        # Used by row-ranking layer
+        "genre_counts": dict(genre_counter),
+        "keyword_counts": dict(keyword_counter),
+        "director_counts": dict(director_counter),
+        "cast_counts": dict(cast_counter),
+        "selected_count": len(selected_movies),
     }
 
 def _build_headline(taste_summary: dict) -> str:
@@ -626,90 +646,114 @@ def _build_headline(taste_summary: dict) -> str:
     return "Here are some movies you might like"
 
 
+def _build_signal_title(signal_kind: str, signal_value: str, taste_summary: dict) -> str:
+    label = _pretty_label(signal_value)
+
+    if signal_kind == "director":
+        return f"Because You Like Films Shaped by {label}"
+
+    if signal_kind == "cast":
+        return f"Because You Like Movies with {label}"
+
+    if signal_kind == "keyword":
+        top_genres = taste_summary.get("top_genres", [])
+        if top_genres:
+            return f"Because You Like {label} {_pretty_label(top_genres[0])}"
+        return f"Because You Like {label}"
+
+    if signal_kind == "genre":
+        return f"Because You Like {_pretty_label(signal_value)}"
+
+    return f"Because You Like {label}"
+
+
 def _build_taste_row_signals(taste_summary: dict) -> list[dict]:
     """
-    Build possible recommendation row signals from the user's selected movies.
+    Build possible taste-profile rows and score their importance.
 
-    Ordered by specificity:
-    1. repeated directors
-    2. repeated cast
-    3. repeated keywords/themes
-    4. genres
-
-    One master constant controls how many row candidates we generate.
-    More rows requested -> we automatically look deeper into each signal bucket.
+    These are row candidates, not movie candidates.
+    The final page-ranking layer decides where these rows appear.
     """
     signals: list[dict] = []
 
-    # Spread the signal budget across buckets.
-    director_limit = max(1, min(3, MAX_TASTE_ROWS))
-    cast_limit = max(1, min(3, MAX_TASTE_ROWS))
-    keyword_limit = max(2, MAX_TASTE_ROWS)
-    genre_limit = max(2, min(4, MAX_TASTE_ROWS))
+    selected_count = max(int(taste_summary.get("selected_count") or 1), 1)
 
-    for director in taste_summary.get("repeated_directors", [])[:2]:
-        row_summary = {
-            "top_genres": [],
-            "top_keywords": [],
-            "repeated_directors": [director],
-            "repeated_cast": [],
-            "year_range": None,
-        }
+    genre_counts = taste_summary.get("genre_counts", {})
+    keyword_counts = taste_summary.get("keyword_counts", {})
+    director_counts = taste_summary.get("director_counts", {})
+    cast_counts = taste_summary.get("cast_counts", {})
+
+    def support_ratio(count: int | float) -> float:
+        return min(float(count) / selected_count, 1.0)
+
+    def add_signal(
+        kind: str,
+        value: str,
+        count: int | float,
+        specificity: float,
+        base_strength: float,
+    ) -> None:
+        if not value:
+            return
+
+        support = support_ratio(count)
+        signal_strength = min((base_strength * 0.65) + (support * 0.35), 1.0)
+
         signals.append(
             {
-                "kind": "director",
-                "value": director,
-                "title": _build_headline(row_summary),
+                "kind": kind,
+                "value": value,
+                "title": _build_signal_title(kind, value, taste_summary),
+                "signal_strength": round(signal_strength, 6),
+                "support_ratio": round(support, 6),
+                "specificity": round(specificity, 6),
             }
         )
 
-    for actor in taste_summary.get("repeated_cast", [])[:2]:
-        row_summary = {
-            "top_genres": [],
-            "top_keywords": [],
-            "repeated_directors": [],
-            "repeated_cast": [actor],
-            "year_range": None,
-        }
-        signals.append(
-            {
-                "kind": "cast",
-                "value": actor,
-                "title": _build_headline(row_summary),
-            }
+    for director in taste_summary.get("repeated_directors", [])[:3]:
+        add_signal(
+            kind="director",
+            value=director,
+            count=director_counts.get(director, 1),
+            specificity=0.95,
+            base_strength=0.95,
         )
 
-    for keyword in taste_summary.get("top_keywords", [])[:3]:
-        row_summary = {
-            "top_genres": taste_summary.get("top_genres", [])[:2],
-            "top_keywords": [keyword],
-            "repeated_directors": [],
-            "repeated_cast": [],
-            "year_range": taste_summary.get("year_range"),
-        }
-        signals.append(
-            {
-                "kind": "keyword",
-                "value": keyword,
-                "title": _build_headline(row_summary),
-            }
+    for actor in taste_summary.get("repeated_cast", [])[:3]:
+        add_signal(
+            kind="cast",
+            value=actor,
+            count=cast_counts.get(actor, 1),
+            specificity=0.90,
+            base_strength=0.88,
         )
 
-    for genre in taste_summary.get("top_genres", [])[:2]:
-        row_summary = {
-            "top_genres": [genre],
-            "top_keywords": [],
-            "repeated_directors": [],
-            "repeated_cast": [],
-            "year_range": taste_summary.get("year_range"),
-        }
-        signals.append(
-            {
-                "kind": "genre",
-                "value": genre,
-                "title": _build_headline(row_summary),
-            }
+    for keyword in taste_summary.get("top_keywords", [])[:5]:
+        add_signal(
+            kind="keyword",
+            value=keyword,
+            count=keyword_counts.get(keyword, 1),
+            specificity=0.82,
+            base_strength=0.82,
         )
+
+    for genre in taste_summary.get("top_genres", [])[:4]:
+        add_signal(
+            kind="genre",
+            value=genre,
+            count=genre_counts.get(genre, 1),
+            specificity=0.55,
+            base_strength=0.70,
+        )
+
+    signals.sort(
+        key=lambda signal: (
+            signal["signal_strength"],
+            signal["specificity"],
+            signal["support_ratio"],
+        ),
+        reverse=True,
+    )
 
     return signals
 
@@ -847,6 +891,383 @@ def get_constrained_row(
         "title": title,
         "items": final_rows,
     }
+
+
+
+def _public_rec_item(row: dict) -> dict:
+    """
+    Strip internal scoring fields that the frontend does not need.
+    """
+    keep = [
+        "movie_id",
+        "title",
+        "score",
+        "final_score",
+        "combined_score",
+        "ranker_score",
+        "ranker_score_norm",
+        "quality_score",
+        "support_count",
+        "explanations",
+    ]
+
+    return {key: row[key] for key in keep if key in row}
+
+
+def _average_item_score(items: list[dict]) -> float:
+    if not items:
+        return 0.0
+
+    scores = [
+        float(item.get("score") or item.get("final_score") or 0.0)
+        for item in items
+    ]
+
+    return sum(scores) / len(scores)
+
+
+def _item_ids(items: list[dict]) -> set[int]:
+    ids = set()
+
+    for item in items:
+        movie_id = item.get("movie_id")
+        if movie_id is not None:
+            ids.add(int(movie_id))
+
+    return ids
+
+
+def _build_top_picks_row(all_ranked_rows: list[dict], top_k: int) -> dict | None:
+    items = [_public_rec_item(row) for row in all_ranked_rows[:top_k]]
+
+    if not items:
+        return None
+
+    return {
+        "type": "top_picks",
+        "title": "Top Picks For You",
+        "pinned": True,
+        "row_score": 1.0,
+        "items": items,
+    }
+
+
+def _build_familiar_but_not_obvious_row(
+    all_ranked_rows: list[dict],
+    top_k: int,
+    exclude_ids: set[int],
+) -> dict | None:
+    scored = []
+
+    for row in all_ranked_rows:
+        movie_id = int(row["movie_id"])
+        if movie_id in exclude_ids:
+            continue
+
+        final_score = float(row.get("final_score", 0.0))
+        ranker_norm = float(row.get("ranker_score_norm", final_score))
+        combined_score = float(row.get("combined_score", 0.0))
+
+        # Best zone: strong taste match, but not the most obvious cosine clone.
+        not_obvious_score = 1.0 - abs(combined_score - 0.60)
+        not_obvious_score = max(0.0, min(not_obvious_score, 1.0))
+
+        engagement_score = (
+            0.50 * final_score
+            + 0.25 * ranker_norm
+            + 0.25 * not_obvious_score
+        )
+
+        scored.append((engagement_score, row))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+
+    items = [_public_rec_item(row) for _, row in scored[:top_k]]
+
+    if not items:
+        return None
+
+    return {
+        "type": "familiar_but_not_obvious",
+        "title": "Familiar, But Not Obvious",
+        "pinned": True,
+        "row_score": 0.99,
+        "items": items,
+    }
+
+
+def _build_hidden_gems_row(
+    all_ranked_rows: list[dict],
+    top_k: int,
+    exclude_ids: set[int],
+) -> dict | None:
+    if not all_ranked_rows:
+        return None
+
+    popularity_values = [
+        float(np.log1p(row.get("popularity", 0.0) or 0.0))
+        for row in all_ranked_rows
+    ]
+    vote_average_values = [
+        float(row.get("vote_average", 0.0) or 0.0)
+        for row in all_ranked_rows
+    ]
+
+    popularity_norm = _min_max_normalize(popularity_values)
+    vote_average_norm = _min_max_normalize(vote_average_values)
+
+    scored = []
+
+    for row, pop_norm, vote_norm in zip(
+        all_ranked_rows,
+        popularity_norm,
+        vote_average_norm,
+    ):
+        movie_id = int(row["movie_id"])
+        if movie_id in exclude_ids:
+            continue
+
+        final_score = float(row.get("final_score", 0.0))
+        low_popularity_score = 1.0 - float(pop_norm)
+
+        hidden_gem_score = (
+            0.45 * final_score
+            + 0.30 * float(vote_norm)
+            + 0.25 * low_popularity_score
+        )
+
+        scored.append((hidden_gem_score, row))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+
+    items = [_public_rec_item(row) for _, row in scored[:top_k]]
+
+    if not items:
+        return None
+
+    return {
+        "type": "hidden_gems",
+        "title": "Hidden Gems You Might Like",
+        "pinned": True,
+        "row_score": 0.98,
+        "items": items,
+    }
+
+
+def _build_ranked_taste_rows(
+    selected_movies: list[dict],
+    movie_ids: list[int],
+    taste_summary: dict,
+) -> list[dict]:
+    rows = []
+
+    for signal in _build_taste_row_signals(taste_summary):
+        row = get_constrained_row(
+            selected_movies=selected_movies,
+            movie_ids=movie_ids,
+            signal_kind=signal["kind"],
+            signal_value=signal["value"],
+            title=signal["title"],
+            top_k=ORGANIZED_ROW_TOP_K,
+            candidate_pool=100,
+            min_support=1,
+        )
+
+        if not row:
+            continue
+
+        items = row.get("items", [])
+        avg_movie_score = _average_item_score(items)
+
+        row_score = (
+            0.35 * float(signal["signal_strength"])
+            + 0.25 * avg_movie_score
+            + 0.20 * float(signal["specificity"])
+            + 0.10 * float(signal["support_ratio"])
+            + 0.10 * _row_diversity_value(signal["kind"])
+        )
+
+        rows.append(
+            {
+                "type": "taste_profile",
+                "title": row["title"],
+                "pinned": False,
+                "row_score": round(float(row_score), 6),
+                "signal_kind": signal["kind"],
+                "signal_value": signal["value"],
+                "items": [_public_rec_item(item) for item in items],
+            }
+        )
+
+    return rows
+
+
+def _row_diversity_value(signal_kind: str) -> float:
+    """
+    Keeps the page from becoming only generic genre rows.
+    """
+    if signal_kind == "director":
+        return 0.90
+    if signal_kind == "cast":
+        return 0.86
+    if signal_kind == "keyword":
+        return 0.82
+    if signal_kind == "genre":
+        return 0.60
+    return 0.50
+
+
+def _source_movie_fit_score(source_movie: dict, taste_summary: dict) -> float:
+    """
+    Measures how well an individual selected movie represents the user's total taste profile.
+
+    Example:
+    Avengers should rank high if the whole selected list is Marvel/action/superhero-heavy.
+    """
+    movie_genres = set(_split_pipe(source_movie.get("tmdb_genres", "")))
+    movie_keywords = set(_split_pipe(source_movie.get("tmdb_keywords", "")))
+    movie_directors = set(_split_pipe(source_movie.get("tmdb_directors", "")))
+    movie_cast = set(_split_pipe(source_movie.get("tmdb_cast_top5", "")))
+
+    top_genres = set(taste_summary.get("top_genres", []))
+    top_keywords = set(taste_summary.get("top_keywords", []))
+    repeated_directors = set(taste_summary.get("repeated_directors", []))
+    repeated_cast = set(taste_summary.get("repeated_cast", []))
+
+    genre_fit = len(movie_genres & top_genres) / max(len(top_genres), 1)
+    keyword_fit = len(movie_keywords & top_keywords) / max(len(top_keywords), 1)
+
+    director_fit = 1.0 if movie_directors & repeated_directors else 0.0
+    cast_fit = 1.0 if movie_cast & repeated_cast else 0.0
+
+    return min(
+        0.45 * genre_fit
+        + 0.30 * keyword_fit
+        + 0.15 * director_fit
+        + 0.10 * cast_fit,
+        1.0,
+    )
+
+
+def _build_source_movie_rows(
+    selected_movies: list[dict],
+    taste_summary: dict,
+) -> list[dict]:
+    rows = []
+
+    for source_movie in selected_movies:
+        source_movie_id = int(source_movie["movie_id"])
+        source_title = source_movie.get("name") or source_movie.get("title") or "this movie"
+
+        single = predict_single(
+            movie_id=source_movie_id,
+            top_k=SOURCE_MOVIE_ROW_TOP_K,
+            candidate_pool=50,
+        )
+
+        items = single.get("recommendations", [])
+        if not items:
+            continue
+
+        source_fit = _source_movie_fit_score(source_movie, taste_summary)
+        avg_movie_score = _average_item_score(items)
+
+        row_score = (
+            0.45 * source_fit
+            + 0.35 * avg_movie_score
+            + 0.20 * 0.70
+        )
+
+        rows.append(
+            {
+                "type": "source_movie",
+                "title": f"Because You Liked {source_title}",
+                "pinned": False,
+                "row_score": round(float(row_score), 6),
+                "source_movie_id": source_movie_id,
+                "items": [_public_rec_item(item) for item in items],
+            }
+        )
+
+    return rows
+
+
+def _build_organized_rows(
+    all_ranked_rows: list[dict],
+    selected_movies: list[dict],
+    movie_ids: list[int],
+    taste_summary: dict,
+    top_k: int,
+    max_taste_profile_rows: int = MAX_TASTE_ROWS,
+) -> list[dict]:
+    """
+    Final row-level ranking system.
+
+    Pinned rows always come first.
+    Dynamic rows are naturally mixed based on row_score.
+    """
+    organized_rows: list[dict] = []
+
+    top_picks = _build_top_picks_row(all_ranked_rows, top_k)
+    if top_picks:
+        organized_rows.append(top_picks)
+
+    used_ids = _item_ids(top_picks["items"]) if top_picks else set()
+
+    familiar = _build_familiar_but_not_obvious_row(
+        all_ranked_rows=all_ranked_rows,
+        top_k=top_k,
+        exclude_ids=used_ids,
+    )
+    if familiar:
+        organized_rows.append(familiar)
+        used_ids |= _item_ids(familiar["items"])
+
+    hidden_gems = _build_hidden_gems_row(
+        all_ranked_rows=all_ranked_rows,
+        top_k=top_k,
+        exclude_ids=used_ids,
+    )
+    if hidden_gems:
+        organized_rows.append(hidden_gems)
+        used_ids |= _item_ids(hidden_gems["items"])
+
+    dynamic_rows = []
+    dynamic_rows.extend(
+        _build_ranked_taste_rows(
+            selected_movies=selected_movies,
+            movie_ids=movie_ids,
+            taste_summary=taste_summary,
+        )
+    )
+    dynamic_rows.extend(
+        _build_source_movie_rows(
+            selected_movies=selected_movies,
+            taste_summary=taste_summary,
+        )
+    )
+
+    dynamic_rows.sort(key=lambda row: row["row_score"], reverse=True)
+
+    seen_titles = {row["title"] for row in organized_rows}
+    taste_profile_count = 0
+
+    for row in dynamic_rows:
+        if row["title"] in seen_titles:
+            continue
+
+        if row.get("type") == "taste_profile":
+            if taste_profile_count >= max_taste_profile_rows:
+                continue
+            taste_profile_count += 1
+
+        organized_rows.append(row)
+        seen_titles.add(row["title"])
+
+        if len(organized_rows) >= 3 + MAX_DYNAMIC_ORGANIZED_ROWS:
+            break
+
+    return organized_rows
 
 
 
@@ -1085,6 +1506,9 @@ def _predict_internal(
                 "combined_score": float(candidate.combined_score),
                 "support_count": int(candidate.support_count),
                 "source_movie_ids": list(candidate.source_movie_ids),
+                "vote_average": float(candidate_movie.get("tmdb_vote_average") or 0.0),
+                "vote_count": float(candidate_movie.get("tmdb_vote_count") or 0.0),
+                "popularity": float(candidate_movie.get("tmdb_popularity") or 0.0),
                 "agg_features": agg_features,
             }
         )
@@ -1118,11 +1542,22 @@ def _predict_internal(
                 "score": round(float(final_score), 6),
                 "support_count": row["support_count"],
                 "explanations": _build_explanations(row["agg_features"]),
+
+                "ranker_score_norm": round(float(ranker_score_norm), 6),
+                "vote_average": row.get("vote_average", 0.0),
+                "vote_count": row.get("vote_count", 0.0),
+                "popularity": row.get("popularity", 0.0),
             }
         )
 
     final_rows.sort(key=lambda item: item["final_score"], reverse=True)
-    final_rows = final_rows[:top_k]
+    all_ranked_rows = sorted(
+        final_rows,
+        key=lambda item: item["final_score"],
+        reverse=True,
+    )
+
+    top_recommendations = all_ranked_rows[:top_k]
 
     # -----------------------------------------------------
     # STEP 6: Build frontend-friendly taste summary
@@ -1130,33 +1565,28 @@ def _predict_internal(
     taste_summary = _build_taste_summary(selected_movies)
     headline = _build_headline(taste_summary)
 
-    taste_rows = []
-    used_titles = set()
+    # -----------------------------------------------------
+    # STEP 7: Build organized row-level recommendation layout
+    # -----------------------------------------------------
+    organized_rows = _build_organized_rows(
+        all_ranked_rows=all_ranked_rows,
+        selected_movies=selected_movies,
+        movie_ids=movie_ids,
+        taste_summary=taste_summary,
+        top_k=top_k,
+    )
 
-    for signal in _build_taste_row_signals(taste_summary):
-        row = get_constrained_row(
-            selected_movies=selected_movies,
-            movie_ids=movie_ids,
-            signal_kind=signal["kind"],
-            signal_value=signal["value"],
-            title=signal["title"],
-            top_k=10,
-            candidate_pool=100,
-            min_support=1,
-        )
-
-        if row and row["title"] not in used_titles:
-            taste_rows.append(row)
-            used_titles.add(row["title"])
-
-        if len(taste_rows) == MAX_TASTE_ROWS:
-            break
+    taste_rows = [
+        row for row in organized_rows
+        if row.get("type") == "taste_profile"
+    ]
 
     return {
         "movie_ids": movie_ids,
         "top_k": top_k,
         "headline": headline,
         "taste_summary": taste_summary,
+        "organized_rows": organized_rows,
         "taste_rows": taste_rows,
-        "recommendations": final_rows,
+        "recommendations": [_public_rec_item(row) for row in top_recommendations],
     }
