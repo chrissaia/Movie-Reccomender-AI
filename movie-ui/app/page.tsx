@@ -10,7 +10,9 @@ type Movie = {
   poster?: string;
 };
 
-const TMDB_API_KEY = "5d1421370bac86b6d373cf6be6f0e942";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY ?? "";
+
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w185";
 const FALLBACK_POSTER = "/no-poster.png";
 
@@ -58,7 +60,7 @@ export default function Home() {
 
       try {
         const res = await fetch(
-          `http://127.0.0.1:8000/movies/search?q=${encodeURIComponent(query)}`
+          `${API_BASE_URL}/movies/search?q=${encodeURIComponent(query)}`
         );
         const data = await res.json();
 
@@ -119,6 +121,9 @@ export default function Home() {
       }}
     >
     <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
+      <button className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold" onClick={() => router.push("/friends")}>
+        Friends
+      </button>
       <button
         onClick={() => router.push("/lists")}
         className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold"
