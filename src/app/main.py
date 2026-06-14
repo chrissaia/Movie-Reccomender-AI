@@ -59,7 +59,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -604,4 +604,3 @@ def update_my_onboarding(
 ):
     user_id = require_user_id(x_user_id)
     return update_onboarding_preferences(user_id, req.model_dump())
-

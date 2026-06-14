@@ -77,40 +77,54 @@ export default function ProfilePage() {
   const loadProfile = async () => {
     if (!userId) return;
 
-    const res = await fetch(`${API_BASE_URL}/profile`, {
-      headers: { "X-User-Id": userId },
-    });
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile`, {
+        headers: { "X-User-Id": userId },
+      });
 
-    if (!res.ok) return;
+      if (!res.ok) {
+        setMessage("Could not load profile.");
+        return;
+      }
 
-    const payload: ProfilePayload = await res.json();
+      const payload: ProfilePayload = await res.json();
 
-    setData(payload);
-    setName(payload.profile.name ?? clerkName ?? "");
-    setBio(payload.profile.bio ?? "");
-    setPrefs({
-      ...emptyPrefs,
-      ...payload.onboarding_preferences,
-    });
+      setData(payload);
+      setName(payload.profile.name ?? clerkName ?? "");
+      setBio(payload.profile.bio ?? "");
+      setPrefs({
+        ...emptyPrefs,
+        ...payload.onboarding_preferences,
+      });
+      setMessage("");
+    } catch (err) {
+      console.error(err);
+      setMessage("Could not reach the profile service.");
+    }
   };
 
   useEffect(() => {
     const syncAndLoad = async () => {
       if (!isLoaded || !isSignedIn || !userId) return;
 
-      await fetch(`${API_BASE_URL}/user/profile`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": userId,
-        },
-        body: JSON.stringify({
-          email: userEmail,
-          name: clerkName,
-        }),
-      });
+      try {
+        await fetch(`${API_BASE_URL}/user/profile`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-User-Id": userId,
+          },
+          body: JSON.stringify({
+            email: userEmail,
+            name: clerkName,
+          }),
+        });
 
-      await loadProfile();
+        await loadProfile();
+      } catch (err) {
+        console.error(err);
+        setMessage("Could not reach the profile service.");
+      }
     };
 
     syncAndLoad();
@@ -119,47 +133,57 @@ export default function ProfilePage() {
   const saveProfile = async () => {
     if (!userId) return;
 
-    const res = await fetch(`${API_BASE_URL}/profile`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": userId,
-      },
-      body: JSON.stringify({
-        name,
-        bio,
-        avatar_url: data?.profile.avatar_url ?? null,
-      }),
-    });
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": userId,
+        },
+        body: JSON.stringify({
+          name,
+          bio,
+          avatar_url: data?.profile.avatar_url ?? null,
+        }),
+      });
 
-    if (!res.ok) {
-      setMessage("Could not save profile.");
-      return;
+      if (!res.ok) {
+        setMessage("Could not save profile.");
+        return;
+      }
+
+      setMessage("Profile saved.");
+      await loadProfile();
+    } catch (err) {
+      console.error(err);
+      setMessage("Could not reach the profile service.");
     }
-
-    setMessage("Profile saved.");
-    await loadProfile();
   };
 
   const savePreferences = async () => {
     if (!userId) return;
 
-    const res = await fetch(`${API_BASE_URL}/profile/onboarding`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": userId,
-      },
-      body: JSON.stringify(prefs),
-    });
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile/onboarding`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": userId,
+        },
+        body: JSON.stringify(prefs),
+      });
 
-    if (!res.ok) {
-      setMessage("Could not save preferences.");
-      return;
+      if (!res.ok) {
+        setMessage("Could not save preferences.");
+        return;
+      }
+
+      setMessage("Preferences saved.");
+      await loadProfile();
+    } catch (err) {
+      console.error(err);
+      setMessage("Could not reach the profile service.");
     }
-
-    setMessage("Preferences saved.");
-    await loadProfile();
   };
 
   const updatePref = (key: string, value: string) => {
