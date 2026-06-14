@@ -2,94 +2,16 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
-import AuthProfileButton from "../components/AuthProfileButton";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-
-const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY ?? "";
-const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w342";
-const FALLBACK_POSTER = "/no-poster.png";
-
-type SavedMovie = {
-  movie_id: number;
-  title: string;
-};
-
-type RecommendationItem = {
-  movie_id: number;
-  title: string;
-  score?: number;
-  final_score?: number;
-  combined_score?: number;
-  ranker_score?: number;
-  support_count?: number;
-  explanations?: string[];
-  poster?: string;
-  overview?: string;
-  year?: string;
-};
-
-type OrganizedRow = {
-  type: string;
-  title: string;
-  pinned?: boolean;
-  row_score?: number;
-  items: RecommendationItem[];
-};
-
-type CombinedRecommendationResponse = {
-  movie_ids: number[];
-  top_k: number;
-  headline?: string;
-  taste_summary?: Record<string, unknown>;
-  organized_rows?: OrganizedRow[];
-  recommendations?: RecommendationItem[];
-};
-
-async function getTmdbDetails(title: string) {
-  if (!TMDB_API_KEY) {
-    return {
-      poster: FALLBACK_POSTER,
-      overview: "",
-      year: "",
-    };
-  }
-
-  try {
-    const res = await fetch(
-      `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(
-        title
-      )}&api_key=${TMDB_API_KEY}`
-    );
-
-    const data = await res.json();
-
-    const match =
-      data?.results?.find(
-        (movie: { title?: string }) =>
-          String(movie.title ?? "").toLowerCase() === title.toLowerCase()
-      ) ?? data?.results?.[0];
-
-    return {
-      poster: match?.poster_path
-        ? `${TMDB_IMAGE_BASE}${match.poster_path}`
-        : FALLBACK_POSTER,
-      overview: match?.overview ?? "",
-      year: match?.release_date
-        ? String(match.release_date).slice(0, 4)
-        : "",
-    };
-  } catch {
-    return {
-      poster: FALLBACK_POSTER,
-      overview: "",
-      year: "",
-    };
-  }
-}
+import AppHeader from "../components/AppHeader";
+import { API_BASE_URL, FALLBACK_POSTER } from "../lib/config";
+import { formatScore } from "../lib/format";
+import { getTmdbDetails } from "../lib/tmdb";
+import type {
+  CombinedRecommendationResponse,
+  OrganizedRow,
+  SavedMovie,
+} from "../types";
 
 async function enrichRows(rows: OrganizedRow[]): Promise<OrganizedRow[]> {
   return Promise.all(
@@ -108,11 +30,6 @@ async function enrichRows(rows: OrganizedRow[]): Promise<OrganizedRow[]> {
   );
 }
 
-function formatScore(value?: number) {
-  if (value === undefined || value === null) return "";
-  return `${Math.round(value * 100)}% match`;
-}
-
 function rowBadge(type: string) {
   if (type === "top_picks") return "Best overall";
   if (type === "familiar_but_not_obvious") return "Smart discovery";
@@ -123,7 +40,6 @@ function rowBadge(type: string) {
 }
 
 export default function ResultsPage() {
-  const router = useRouter();
   const { user, isSignedIn } = useUser();
   const userId = user?.id;
 
@@ -531,22 +447,13 @@ export default function ResultsPage() {
       `}</style>
 
       <div className="wrap">
-        <div className="top-bar">
-          <button className="pill-btn" onClick={() => router.push("/")}>
-            ← Search
-          </button>
-
-          <div className="top-actions">
-            <button className="pill-btn" onClick={() => router.push("/friends")}>
-              My Friends
-            </button>
-            <button className="pill-btn" onClick={() => router.push("/lists")}>
-              My Lists
-            </button>
-
-            <AuthProfileButton />
-          </div>
-        </div>
+        <AppHeader
+          leading={{ label: "← Search", href: "/" }}
+          actions={[
+            { label: "My Friends", href: "/friends" },
+            { label: "My Lists", href: "/lists" },
+          ]}
+        />
 
         <section className="hero">
           <div className="hero-copy">

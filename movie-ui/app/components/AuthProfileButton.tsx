@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 export default function AuthProfileButton() {
   const router = useRouter();
   const { user, isSignedIn } = useUser();
+  const fallbackInitial =
+    user?.firstName?.[0] ?? user?.username?.[0] ?? user?.primaryEmailAddress?.emailAddress?.[0] ?? "P";
 
   if (!isSignedIn) {
     return (
@@ -18,9 +20,16 @@ export default function AuthProfileButton() {
   return (
     <button className="auth-profile-btn" onClick={() => router.push("/profile")}>
       {user?.imageUrl ? (
-        <img className="auth-profile-avatar" src={user.imageUrl} alt="Profile" />
+        <img
+          aria-hidden="true"
+          className="auth-profile-avatar"
+          src={user.imageUrl}
+          alt=""
+        />
       ) : (
-        <span className="auth-profile-icon">👤</span>
+        <span aria-hidden="true" className="auth-profile-icon">
+          {fallbackInitial.toUpperCase()}
+        </span>
       )}
       <span>Profile</span>
     </button>

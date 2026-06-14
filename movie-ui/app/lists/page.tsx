@@ -1,59 +1,13 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { SignInButton, useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import AuthProfileButton from "../components/AuthProfileButton";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-
-type SavedMovie = {
-  movie_id: number;
-  title: string;
-};
-
-type SavedList = {
-  id: string;
-  name: string;
-  movies: SavedMovie[];
-  createdAt: string;
-};
-
-type SharedMember = {
-  user_id: string;
-  role: string;
-  profile: {
-    user_id: string;
-    email: string | null;
-    name: string | null;
-  } | null;
-};
-
-type SharedList = {
-  id: string;
-  name: string;
-  owner_user_id: string;
-  createdAt: string;
-  updatedAt: string;
-  members: SharedMember[];
-  movies: SavedMovie[];
-};
-
-type UnifiedList = SavedList & {
-  kind: "personal" | "shared";
-  sharedWith?: string[];
-  owner_user_id?: string;
-};
-
-function formatDate(value: string) {
-  try {
-    return new Date(value).toLocaleDateString();
-  } catch {
-    return value;
-  }
-}
+import AppHeader from "../components/AppHeader";
+import { API_BASE_URL } from "../lib/config";
+import { formatDate } from "../lib/format";
+import type { SavedList, SharedList, SharedMember, UnifiedList } from "../types";
 
 export default function ListsPage() {
   const router = useRouter();
@@ -182,7 +136,7 @@ export default function ListsPage() {
     router.push("/results");
   };
 
-  const editList = (list: SavedList) => {
+  const editList = (list: UnifiedList) => {
     router.push(`/edit-list?kind=${list.kind}&listId=${list.id}`);
   };
 
@@ -424,21 +378,10 @@ export default function ListsPage() {
       `}</style>
 
       <div className="lists-wrap">
-        <div className="top-bar">
-          <button className="pill-btn" onClick={() => router.push("/")}>
-            ← Search
-          </button>
-
-          <div className="top-actions">
-            <button className="pill-btn" onClick={() => router.push("/friends")}>
-              My Friends
-            </button>
-
-            <AuthProfileButton />
-
-            {isSignedIn && <UserButton />}
-          </div>
-        </div>
+        <AppHeader
+          leading={{ label: "← Search", href: "/" }}
+          actions={[{ label: "My Friends", href: "/friends" }]}
+        />
         <section className="hero">
           <div className="hero-copy">
             <h1 className="hero-title">Your saved movie lists.</h1>

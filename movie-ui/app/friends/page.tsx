@@ -1,35 +1,13 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { SignInButton, useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
-import AuthProfileButton from "../components/AuthProfileButton";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-
-type UserProfile = {
-  user_id: string;
-  email: string | null;
-  name: string | null;
-};
-
-type Friendship = {
-  id: string;
-  other_user_id: string;
-  other_user: UserProfile | null;
-  status: "pending" | "accepted" | "blocked";
-};
-
-type FriendsResponse = {
-  friends: Friendship[];
-  incoming_requests: Friendship[];
-  outgoing_requests: Friendship[];
-};
+import AppHeader from "../components/AppHeader";
+import { API_BASE_URL } from "../lib/config";
+import type { FriendsResponse, UserProfile } from "../types";
 
 export default function FriendsPage() {
-  const router = useRouter();
   const { user, isSignedIn, isLoaded } = useUser();
   const userId = user?.id;
 
@@ -46,7 +24,7 @@ export default function FriendsPage() {
   const userName =
     user?.fullName ?? user?.username ?? user?.firstName ?? userEmail ?? null;
 
-  const authHeaders = userId
+  const authHeaders: Record<string, string> = userId
     ? {
         "X-User-Id": userId,
       }
@@ -339,19 +317,10 @@ export default function FriendsPage() {
       `}</style>
 
       <div className="wrap">
-        <div className="top-bar">
-          <button className="pill-btn" onClick={() => router.push("/")}>
-            ← Search
-          </button>
-
-          <div className="top-actions">
-            <button className="pill-btn" onClick={() => router.push("/lists")}>
-              My Lists
-            </button>
-
-            <AuthProfileButton />
-          </div>
-        </div>
+        <AppHeader
+          leading={{ label: "← Search", href: "/" }}
+          actions={[{ label: "My Lists", href: "/lists" }]}
+        />
 
         <h1 className="hero-title">Friends</h1>
         <div className="hero-sub">

@@ -1,13 +1,11 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { SignInButton, useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import AuthProfileButton from "../components/AuthProfileButton";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+import AppHeader from "../components/AppHeader";
+import { API_BASE_URL } from "../lib/config";
 
 type ProfilePayload = {
   profile: {
@@ -372,22 +370,13 @@ export default function ProfilePage() {
       `}</style>
 
       <div className="wrap">
-        <div className="top-bar">
-          <button className="pill-btn" onClick={() => router.push("/")}>
-            ← Search
-          </button>
-
-          <div className="top-actions">
-            <button className="pill-btn" onClick={() => router.push("/lists")}>
-              My Lists
-            </button>
-            <button className="pill-btn" onClick={() => router.push("/friends")}>
-              My Friends
-            </button>
-
-            <AuthProfileButton />
-          </div>
-        </div>
+        <AppHeader
+          leading={{ label: "← Search", href: "/" }}
+          actions={[
+            { label: "My Lists", href: "/lists" },
+            { label: "My Friends", href: "/friends" },
+          ]}
+        />
 
         {!isSignedIn && isLoaded && (
           <div className="panel">

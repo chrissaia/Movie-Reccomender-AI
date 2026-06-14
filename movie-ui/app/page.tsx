@@ -1,41 +1,12 @@
 "use client";
 
-import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import AuthProfileButton from "../components/AuthProfileButton";
-
-type Movie = {
-  movie_id: number;
-  title: string;
-  poster?: string;
-};
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY ?? "";
-
-const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w185";
-const FALLBACK_POSTER = "/no-poster.png";
-
-async function getTmdbPoster(title: string): Promise<string | undefined> {
-  try {
-    const res = await fetch(
-      `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(title)}&api_key=${TMDB_API_KEY}`
-    );
-    const data = await res.json();
-
-    const match =
-      data?.results?.find(
-        (m: any) => String(m.title).toLowerCase() === title.toLowerCase()
-      ) || data?.results?.[0];
-
-    if (!match?.poster_path) return undefined;
-    return `${TMDB_IMAGE_BASE}${match.poster_path}`;
-  } catch {
-    return undefined;
-  }
-}
+import AuthProfileButton from "./components/AuthProfileButton";
+import { API_BASE_URL, FALLBACK_POSTER } from "./lib/config";
+import { getTmdbOptionalPoster } from "./lib/tmdb";
+import type { Movie } from "./types";
 
 export default function Home() {
   const router = useRouter();
@@ -68,7 +39,7 @@ export default function Home() {
 
         const withPosters = await Promise.all(
           data.map(async (movie: Movie) => {
-            const poster = await getTmdbPoster(movie.title);
+            const poster = await getTmdbOptionalPoster(movie.title);
             return {
               ...movie,
               poster,
@@ -126,25 +97,13 @@ export default function Home() {
       <button className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold" onClick={() => router.push("/friends")}>
         Friends
       </button>
-      <button className="pill-btn" onClick={() => router.push("/profile")}>
-      Profile
-    </button>
       <button
         onClick={() => router.push("/lists")}
         className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold"
       >
         My Lists
       </button>
-      <Show
-        when="signed-out"
-        fallback={<UserButton />}
-      >
-        <SignInButton mode="modal">
-          <button className="rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-medium text-white backdrop-blur hover:bg-white/15">
-            Sign In
-          </button>
-        </SignInButton>
-      </Show>
+      <AuthProfileButton />
     </div>
       <div style={{ width: "100%", maxWidth: 900, textAlign: "center" }}>
         <h1

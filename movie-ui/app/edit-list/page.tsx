@@ -1,102 +1,45 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
-import { useEffect, useMemo, useState, kindFromUrl } from "react";
+import { SignInButton, useUser } from "@clerk/nextjs";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import AuthProfileButton from "../components/AuthProfileButton";
+import AppHeader from "../components/AppHeader";
+import { API_BASE_URL, FALLBACK_POSTER } from "../lib/config";
+import { formatDate } from "../lib/format";
+import { getTmdbPoster } from "../lib/tmdb";
+import type {
+  Friendship,
+  FriendsResponse,
+  SavedList,
+  SavedMovie,
+  SharedList,
+  UnifiedList,
+} from "../types";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-
-const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY ?? "";
-const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w185";
-const FALLBACK_POSTER = "/no-poster.png";
-
-type SavedMovie = {
-  movie_id: number;
-  title: string;
-};
-
-type SavedList = {
-  id: string;
-  name: string;
-  movies: SavedMovie[];
-  createdAt: string;
-};
-
-type SearchMovie = {
-  movie_id: number;
-  title: string;
-};
+type SearchMovie = SavedMovie;
 
 type MovieSearchResult = SearchMovie & {
   poster?: string;
 };
 
-type SharedMember = {
-  user_id: string;
-  role: string;
-  profile: {
-    user_id: string;
-    email: string | null;
-    name: string | null;
-  } | null;
-};
-
-type Friendship = {
-  id: string;
-  other_user_id: string;
-  other_user: {
-    user_id: string;
-    email: string | null;
-    name: string | null;
-  } | null;
-};
-
-type FriendsResponse = {
-  friends: Friendship[];
-  incoming_requests: Friendship[];
-  outgoing_requests: Friendship[];
-};
-
-type UnifiedList = SavedList & {
-  kind: "personal" | "shared";
-  members?: SharedMember[];
-  owner_user_id?: string;
-};
-
-function formatDate(value: string) {
-  try {
-    return new Date(value).toLocaleDateString();
-  } catch {
-    return value;
-  }
+function toSavedMovies(movies: SavedMovie[]) {
+  return movies.map((movie) => ({
+    movie_id: movie.movie_id,
+    title: movie.title,
+  }));
 }
 
-async function getTmdbPoster(title: string): Promise<string> {
-  if (!TMDB_API_KEY) return FALLBACK_POSTER;
-
-  try {
-    const res = await fetch(
-      `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(
-        title
-      )}&api_key=${TMDB_API_KEY}`
-    );
-
-    const data = await res.json();
-
-    const match =
-      data?.results?.find(
-        (movie: { title?: string }) =>
-          String(movie.title ?? "").toLowerCase() === title.toLowerCase()
-      ) ?? data?.results?.[0];
-
-    if (!match?.poster_path) return FALLBACK_POSTER;
-    return `${TMDB_IMAGE_BASE}${match.poster_path}`;
-  } catch {
-    return FALLBACK_POSTER;
-  }
+function normalizeSharedList(list: SharedList): UnifiedList {
+  return {
+    id: list.id,
+    name: list.name,
+    createdAt: list.createdAt,
+    movies: toSavedMovies(list.movies),
+    kind: "shared",
+    members: list.members,
+    owner_user_id: list.owner_user_id,
+  };
 }
 
 export default function EditListsPage() {
@@ -149,23 +92,10 @@ export default function EditListsPage() {
 
         if (!res.ok) throw new Error("Failed to load lists");
 
-        const data = await res.json();
-
         const normalizedLists: UnifiedList[] =
           kindFromUrl === "shared"
-            ? data.map((list: any) => ({
-                id: list.id,
-                name: list.name,
-                createdAt: list.createdAt,
-                movies: list.movies.map((movie: any) => ({
-                  movie_id: movie.movie_id,
-                  title: movie.title,
-                })),
-                kind: "shared",
-                members: list.members,
-                owner_user_id: list.owner_user_id,
-              }))
-            : data.map((list: SavedList) => ({
+            ? ((await res.json()) as SharedList[]).map(normalizeSharedList)
+            : ((await res.json()) as SavedList[]).map((list) => ({
                 ...list,
                 kind: "personal",
               }));
@@ -298,20 +228,8 @@ export default function EditListsPage() {
 
           if (!res.ok) throw new Error("Failed to rename shared list");
 
-          const updated = await res.json();
-
-          const normalized: UnifiedList = {
-            id: updated.id,
-            name: updated.name,
-            createdAt: updated.createdAt,
-            movies: updated.movies.map((movie: any) => ({
-              movie_id: movie.movie_id,
-              title: movie.title,
-            })),
-            kind: "shared",
-            members: updated.members,
-            owner_user_id: updated.owner_user_id,
-          };
+          const updated = (await res.json()) as SharedList;
+          const normalized = normalizeSharedList(updated);
 
           setLists((prev) =>
             prev.map((list) => (list.id === listId ? normalized : list))
@@ -381,17 +299,14 @@ export default function EditListsPage() {
 
           if (!res.ok) throw new Error("Failed to remove movie");
 
-          const updated = await res.json();
+          const updated = (await res.json()) as SharedList;
 
           setLists((prev) =>
             prev.map((list) =>
               list.id === selectedList.id
                 ? {
                     ...list,
-                    movies: updated.movies.map((item: any) => ({
-                      movie_id: item.movie_id,
-                      title: item.title,
-                    })),
+                    movies: toSavedMovies(updated.movies),
                     members: updated.members,
                   }
                 : list
@@ -452,17 +367,14 @@ export default function EditListsPage() {
 
           if (!res.ok) throw new Error("Failed to add movie");
 
-          const updated = await res.json();
+          const updated = (await res.json()) as SharedList;
 
           setLists((prev) =>
             prev.map((list) =>
               list.id === selectedList.id
                 ? {
                     ...list,
-                    movies: updated.movies.map((item: any) => ({
-                      movie_id: item.movie_id,
-                      title: item.title,
-                    })),
+                    movies: toSavedMovies(updated.movies),
                     members: updated.members,
                   }
                 : list
@@ -536,7 +448,7 @@ export default function EditListsPage() {
 
           if (!res.ok) throw new Error("Failed to share list");
 
-          const shared = await res.json();
+          const shared = (await res.json()) as SharedList;
 
           router.push(`/edit-list?kind=shared&listId=${shared.id}`);
           return;
@@ -559,7 +471,7 @@ export default function EditListsPage() {
 
         if (!res.ok) throw new Error("Failed to add friend to shared list");
 
-        const updated = await res.json();
+        const updated = (await res.json()) as SharedList;
 
         setLists((prev) =>
           prev.map((list) =>
@@ -567,10 +479,7 @@ export default function EditListsPage() {
               ? {
                   ...list,
                   members: updated.members,
-                  movies: updated.movies.map((item: any) => ({
-                    movie_id: item.movie_id,
-                    title: item.title,
-                  })),
+                  movies: toSavedMovies(updated.movies),
                 }
               : list
           )
@@ -967,19 +876,10 @@ export default function EditListsPage() {
       `}</style>
 
       <div className="wrap">
-        <div className="top-bar">
-          <button className="pill-btn" onClick={() => router.push("/lists")}>
-            ← My Lists
-          </button>
-
-          <div className="top-actions">
-            <button className="pill-btn" onClick={() => router.push("/")}>
-              Search
-            </button>
-
-            <AuthProfileButton />
-          </div>
-        </div>
+        <AppHeader
+          leading={{ label: "← My Lists", href: "/lists" }}
+          actions={[{ label: "Search", href: "/" }]}
+        />
 
         <h1 className="hero-title">Edit your movie lists.</h1>
         <div className="hero-sub">
