@@ -3,6 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 
+from src.db.profile import (
+    ensure_profile_tables,
+    get_profile_home,
+    update_profile,
+    update_onboarding_preferences,
+)
+
 from src.serving.recommend import (
     get_recommendations,
     search_movies,
@@ -63,6 +70,7 @@ async def lifespan(app: FastAPI):
     ensure_user_list_tables()
     ensure_social_tables()
     ensure_shared_list_tables()
+    ensure_profile_tables()
     yield
 
 
@@ -159,6 +167,25 @@ class AddSharedMovieRequest(BaseModel):
 class SharePersonalListRequest(BaseModel):
     member_user_ids: list[str]
 
+
+# --------------------------
+#   PROFILE
+# --------------------------
+
+class UpdateProfileRequest(BaseModel):
+    name: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
+
+
+class OnboardingPreferencesRequest(BaseModel):
+    favorite_genres: list[str] = []
+    disliked_genres: list[str] = []
+    preferred_moods: list[str] = []
+    preferred_pacing: list[str] = []
+    preferred_decades: list[str] = []
+    favorite_movies: list[str] = []
+    disliked_movies: list[str] = []
 
 
 
@@ -541,3 +568,40 @@ def recommend_from_shared_list(
         top_k=top_k,
         min_support=1,
     )
+
+
+
+# --------------------------
+#   PROFILE
+# --------------------------
+
+
+@app.get("/profile")
+def get_profile(x_user_id: str | None = Header(default=None)):
+    user_id = require_user_id(x_user_id)
+    return get_profile_home(user_id)
+
+
+@app.put("/profile")
+def update_my_profile(
+    req: UpdateProfileRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = require_user_id(x_user_id)
+
+    return update_profile(
+        user_id=user_id,
+        name=req.name,
+        bio=req.bio,
+        avatar_url=req.avatar_url,
+    )
+
+
+@app.put("/profile/onboarding")
+def update_my_onboarding(
+    req: OnboardingPreferencesRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = require_user_id(x_user_id)
+    return update_onboarding_preferences(user_id, req.model_dump())
+
