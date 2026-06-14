@@ -1,8 +1,10 @@
 "use client";
 
-import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import AuthProfileButton from "../components/AuthProfileButton";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
@@ -542,13 +544,7 @@ export default function ResultsPage() {
               My Lists
             </button>
 
-            {!isSignedIn && (
-              <SignInButton mode="modal">
-                <button className="primary-btn">Sign In</button>
-              </SignInButton>
-            )}
-
-            {isSignedIn && <UserButton />}
+            <AuthProfileButton />
           </div>
         </div>
 
