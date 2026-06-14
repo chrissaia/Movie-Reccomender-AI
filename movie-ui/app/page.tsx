@@ -4,6 +4,8 @@ import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import AuthProfileButton from "../components/AuthProfileButton";
+
 type Movie = {
   movie_id: number;
   title: string;
@@ -124,6 +126,9 @@ export default function Home() {
       <button className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold" onClick={() => router.push("/friends")}>
         Friends
       </button>
+      <button className="pill-btn" onClick={() => router.push("/profile")}>
+      Profile
+    </button>
       <button
         onClick={() => router.push("/lists")}
         className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold"
