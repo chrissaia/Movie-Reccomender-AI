@@ -147,6 +147,18 @@ def _validate_movie_ids(movie_ids: list[int]) -> list[int]:
     return cleaned
 
 
+def _clean_optional_movie_ids(movie_ids: list[int] | set[int] | None) -> set[int]:
+    if not movie_ids:
+        return set()
+
+    cleaned = set()
+    for movie_id in movie_ids:
+        if isinstance(movie_id, int) and movie_id > 0:
+            cleaned.add(movie_id)
+
+    return cleaned
+
+
 def _min_max_normalize(values: list[float]) -> list[float]:
     if not values:
         return []
@@ -768,6 +780,7 @@ def get_constrained_row(
     top_k: int = 10,
     candidate_pool: int = 100,
     min_support: int = 1,
+    exclude_movie_ids: set[int] | None = None,
 ) -> dict | None:
     if not signal_value.strip():
         return None
@@ -785,9 +798,11 @@ def get_constrained_row(
 
     filtered_candidates = []
     selected_id_set = set(movie_ids)
+    exclude_id_set = _clean_optional_movie_ids(exclude_movie_ids)
 
     for candidate in candidates:
-        if int(candidate.movie_id) in selected_id_set:
+        candidate_id = int(candidate.movie_id)
+        if candidate_id in selected_id_set or candidate_id in exclude_id_set:
             continue
 
         movie = candidate.movie
@@ -1058,6 +1073,7 @@ def _build_ranked_taste_rows(
     selected_movies: list[dict],
     movie_ids: list[int],
     taste_summary: dict,
+    exclude_movie_ids: set[int] | None = None,
 ) -> list[dict]:
     rows = []
 
@@ -1071,6 +1087,7 @@ def _build_ranked_taste_rows(
             top_k=ORGANIZED_ROW_TOP_K,
             candidate_pool=100,
             min_support=1,
+            exclude_movie_ids=exclude_movie_ids,
         )
 
         if not row:
@@ -1152,6 +1169,7 @@ def _source_movie_fit_score(source_movie: dict, taste_summary: dict) -> float:
 def _build_source_movie_rows(
     selected_movies: list[dict],
     taste_summary: dict,
+    exclude_movie_ids: set[int] | None = None,
 ) -> list[dict]:
     rows = []
 
@@ -1163,6 +1181,7 @@ def _build_source_movie_rows(
             movie_id=source_movie_id,
             top_k=SOURCE_MOVIE_ROW_TOP_K,
             candidate_pool=50,
+            exclude_movie_ids=exclude_movie_ids,
         )
 
         items = single.get("recommendations", [])
@@ -1198,6 +1217,7 @@ def _build_organized_rows(
     movie_ids: list[int],
     taste_summary: dict,
     top_k: int,
+    exclude_movie_ids: set[int] | None = None,
     max_taste_profile_rows: int = MAX_TASTE_ROWS,
 ) -> list[dict]:
     """
@@ -1207,6 +1227,7 @@ def _build_organized_rows(
     Dynamic rows are naturally mixed based on row_score.
     """
     organized_rows: list[dict] = []
+    disliked_ids = _clean_optional_movie_ids(exclude_movie_ids)
 
     top_picks = _build_top_picks_row(all_ranked_rows, top_k)
     if top_picks:
@@ -1238,12 +1259,14 @@ def _build_organized_rows(
             selected_movies=selected_movies,
             movie_ids=movie_ids,
             taste_summary=taste_summary,
+            exclude_movie_ids=disliked_ids,
         )
     )
     dynamic_rows.extend(
         _build_source_movie_rows(
             selected_movies=selected_movies,
             taste_summary=taste_summary,
+            exclude_movie_ids=disliked_ids,
         )
     )
 
@@ -1280,6 +1303,7 @@ def predict_single(
     movie_id: int,
     top_k: int = DEFAULT_TOP_K,
     candidate_pool: int = 50,
+    exclude_movie_ids: list[int] | set[int] | None = None,
 ) -> dict:
     _validate_positive_int(movie_id, "movie_id")
     _validate_positive_int(top_k, "top_k")
@@ -1292,6 +1316,12 @@ def predict_single(
         movie_id=movie_id,
         candidate_pool=candidate_pool,
     )
+    exclude_id_set = _clean_optional_movie_ids(exclude_movie_ids)
+    candidates = [
+        candidate
+        for candidate in candidates
+        if int(candidate["movie_id"]) not in exclude_id_set
+    ]
 
     if not candidates:
         return {
@@ -1375,6 +1405,7 @@ def predict_combined(
     top_k: int = DEFAULT_TOP_K,
     candidate_pool: int = DEFAULT_CANDIDATE_POOL,
     min_support: int = DEFAULT_MIN_SUPPORT,
+    exclude_movie_ids: list[int] | set[int] | None = None,
 ) -> dict:
     """
     Main inference function for movie recommendation serving.
@@ -1415,6 +1446,7 @@ def predict_combined(
         }
     """
     cleaned_movie_ids = _validate_movie_ids(movie_ids)
+    exclude_id_set = _clean_optional_movie_ids(exclude_movie_ids)
     _validate_positive_int(top_k, "top_k")
     _validate_positive_int(candidate_pool, "candidate_pool")
     _validate_positive_int(min_support, "min_support")
@@ -1426,12 +1458,14 @@ def predict_combined(
                 root_span.set_attribute("request.top_k", top_k)
                 root_span.set_attribute("request.candidate_pool", candidate_pool)
                 root_span.set_attribute("request.min_support", min_support)
+                root_span.set_attribute("request.exclude_movie_count", len(exclude_id_set))
 
                 result = _predict_internal(
                     movie_ids=cleaned_movie_ids,
                     top_k=top_k,
                     candidate_pool=candidate_pool,
                     min_support=min_support,
+                    exclude_movie_ids=exclude_id_set,
                 )
 
                 if Status is not None and StatusCode is not None:
@@ -1449,6 +1483,7 @@ def predict_combined(
             top_k=top_k,
             candidate_pool=candidate_pool,
             min_support=min_support,
+            exclude_movie_ids=exclude_id_set,
         )
 
 
@@ -1457,6 +1492,7 @@ def _predict_internal(
     top_k: int,
     candidate_pool: int,
     min_support: int,
+    exclude_movie_ids: set[int] | None = None,
 ) -> dict:
     # -----------------------------------------------------
     # STEP 1: Fetch selected movies
@@ -1471,6 +1507,12 @@ def _predict_internal(
         candidate_pool=candidate_pool,
         min_support=min_support,
     )
+    exclude_id_set = _clean_optional_movie_ids(exclude_movie_ids)
+    candidates = [
+        candidate
+        for candidate in candidates
+        if int(candidate.movie_id) not in exclude_id_set
+    ]
 
     if not candidates:
         taste_summary = _build_taste_summary(selected_movies)
@@ -1574,6 +1616,7 @@ def _predict_internal(
         movie_ids=movie_ids,
         taste_summary=taste_summary,
         top_k=top_k,
+        exclude_movie_ids=exclude_id_set,
     )
 
     taste_rows = [
