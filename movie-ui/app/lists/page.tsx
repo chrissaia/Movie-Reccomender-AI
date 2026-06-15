@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import AppHeader from "../components/AppHeader";
 import { API_BASE_URL } from "../lib/config";
 import { formatDate } from "../lib/format";
+import { logHandledError } from "../lib/log";
 import type { SavedList, SharedList, SharedMember, UnifiedList } from "../types";
 
 export default function ListsPage() {
@@ -76,7 +77,7 @@ export default function ListsPage() {
 
 
       } catch (err) {
-        console.error(err);
+        logHandledError("List load failed", err);
         setLists([]);
       } finally {
         setLoading(false);
@@ -106,7 +107,7 @@ export default function ListsPage() {
 
         setLists((prev) => prev.filter((item) => item.id !== list.id));
       } catch (err) {
-        console.error(err);
+        logHandledError("List delete failed", err);
       }
   };
 
