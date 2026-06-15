@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import AuthProfileButton from "./components/AuthProfileButton";
 import { API_BASE_URL, FALLBACK_POSTER } from "./lib/config";
+import { logHandledError } from "./lib/log";
 import { getTmdbOptionalPoster } from "./lib/tmdb";
 import type { Movie } from "./types";
 
@@ -50,7 +51,7 @@ export default function Home() {
         setResults(withPosters);
         setShowDropdown(true);
       } catch (err) {
-        console.error(err);
+        logHandledError("Movie search failed", err);
       }
     };
 
