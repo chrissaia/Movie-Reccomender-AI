@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import AppHeader from "../components/AppHeader";
 import { API_BASE_URL, FALLBACK_POSTER } from "../lib/config";
@@ -11,8 +11,25 @@ import { getTmdbDetails } from "../lib/tmdb";
 import type {
   CombinedRecommendationResponse,
   OrganizedRow,
+  RecommendationItem,
   SavedMovie,
 } from "../types";
+
+const DISLIKED_MOVIES_STORAGE_KEY = "dislikedRecommendationMovieIds";
+
+function readStoredDislikedMovieIds() {
+  try {
+    const raw = localStorage.getItem(DISLIKED_MOVIES_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+
+    return Array.isArray(parsed)
+      ? parsed.filter((movieId): movieId is number => typeof movieId === "number")
+      : [];
+  } catch (err) {
+    logHandledError("Stored disliked movies parse failed", err);
+    return [];
+  }
+}
 
 async function enrichRows(rows: OrganizedRow[]): Promise<OrganizedRow[]> {
   return Promise.all(
@@ -49,6 +66,9 @@ export default function ResultsPage() {
   const [headline, setHeadline] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [dislikedMovieIds, setDislikedMovieIds] = useState<Set<number>>(
+    () => new Set()
+  );
 
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [listName, setListName] = useState("");
@@ -71,11 +91,17 @@ export default function ResultsPage() {
       setError("");
 
       try {
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+        };
+
+        if (isSignedIn && userId) {
+          headers["X-User-Id"] = userId;
+        }
+
         const res = await fetch(`${API_BASE_URL}/recommend/combined`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers,
           body: JSON.stringify({
             movie_ids: selected.map((movie) => movie.movie_id),
             top_k: 10,
@@ -114,7 +140,85 @@ export default function ResultsPage() {
     };
 
     loadRecommendations();
-  }, [selected]);
+  }, [isSignedIn, selected, userId]);
+
+  useEffect(() => {
+    const loadDislikedMovies = async () => {
+      if (!isSignedIn || !userId) {
+        setDislikedMovieIds(new Set(readStoredDislikedMovieIds()));
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/profile/disliked-movies`, {
+          headers: { "X-User-Id": userId },
+        });
+
+        if (!res.ok) {
+          throw new Error("Disliked movies request failed");
+        }
+
+        const data: { movie_ids?: number[] } = await res.json();
+        setDislikedMovieIds(new Set(data.movie_ids ?? []));
+      } catch (err) {
+        logHandledError("Disliked movies load failed", err);
+      }
+    };
+
+    loadDislikedMovies();
+  }, [isSignedIn, userId]);
+
+  const visibleRows = useMemo(
+    () =>
+      rows
+        .map((row) => ({
+          ...row,
+          items: row.items.filter(
+            (movie) => !dislikedMovieIds.has(movie.movie_id)
+          ),
+        }))
+        .filter((row) => row.items.length > 0),
+    [rows, dislikedMovieIds]
+  );
+
+  const dislikeRecommendation = async (movie: RecommendationItem) => {
+    setDislikedMovieIds((current) => {
+      const next = new Set(current);
+      next.add(movie.movie_id);
+
+      if (!isSignedIn || !userId) {
+        localStorage.setItem(
+          DISLIKED_MOVIES_STORAGE_KEY,
+          JSON.stringify(Array.from(next))
+        );
+      }
+
+      return next;
+    });
+
+    if (!isSignedIn || !userId) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile/disliked-movies`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": userId,
+        },
+        body: JSON.stringify({
+          movie_id: movie.movie_id,
+          title: movie.title,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Disliked movie save failed");
+      }
+    } catch (err) {
+      logHandledError("Disliked movie save failed", err);
+      setSaveMessage("Hidden here, but could not save dislike.");
+    }
+  };
 
   const saveList = async () => {
     if (!isSignedIn || !userId) {
@@ -329,6 +433,46 @@ export default function ResultsPage() {
           background: rgba(255,255,255,0.04);
         }
 
+        .dislike-btn {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          z-index: 4;
+          display: grid;
+          place-items: center;
+          width: 32px;
+          height: 32px;
+          border: 1px solid rgba(255,255,255,0.16);
+          border-radius: 999px;
+          background: rgba(15,23,42,0.78);
+          color: #fecaca;
+          cursor: pointer;
+          font-size: 14px;
+          line-height: 1;
+          box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+          backdrop-filter: blur(8px);
+          opacity: 0;
+          pointer-events: none;
+          transition:
+            background 160ms ease,
+            transform 160ms ease,
+            opacity 160ms ease,
+            border-color 160ms ease;
+        }
+
+        .movie-card:hover .dislike-btn,
+        .dislike-btn:focus-visible {
+          opacity: 1;
+          pointer-events: auto;
+        }
+
+        .dislike-btn:hover,
+        .dislike-btn:focus-visible {
+          background: rgba(127,29,29,0.88);
+          border-color: rgba(254,202,202,0.36);
+          transform: translateY(-1px);
+        }
+
         .card-base {
           padding: 10px;
         }
@@ -495,7 +639,7 @@ export default function ResultsPage() {
 
         {!loading &&
           !error &&
-          rows.map((row) => (
+          visibleRows.map((row) => (
             <section className="row-section" key={`${row.type}-${row.title}`}>
               <div className="row-head">
                 <h2 className="row-title">{row.title}</h2>
@@ -505,6 +649,19 @@ export default function ResultsPage() {
               <div className="movie-row">
                 {row.items.map((movie) => (
                   <article className="movie-card" key={`${row.title}-${movie.movie_id}`}>
+                    <button
+                      type="button"
+                      className="dislike-btn"
+                      aria-label={`Dislike ${movie.title}`}
+                      title="Dislike"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        dislikeRecommendation(movie);
+                      }}
+                    >
+                      👎
+                    </button>
+
                     <img
                       className="poster"
                       src={movie.poster || FALLBACK_POSTER}
