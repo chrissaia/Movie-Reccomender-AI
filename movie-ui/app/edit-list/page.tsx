@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AppHeader from "../components/AppHeader";
 import { API_BASE_URL, FALLBACK_POSTER } from "../lib/config";
 import { formatDate } from "../lib/format";
+import { logHandledError } from "../lib/log";
 import { getTmdbPoster } from "../lib/tmdb";
 import type {
   Friendship,
@@ -110,7 +111,7 @@ export default function EditListsPage() {
         setSelectedListId(found?.id ?? null);
         setDraftName(found?.name ?? "");
       } catch (err) {
-        console.error(err);
+        logHandledError("Editable lists load failed", err);
         setLists([]);
       } finally {
         setLoadingLists(false);
@@ -136,7 +137,7 @@ export default function EditListsPage() {
           const data: FriendsResponse = await res.json();
           setFriends(data.friends);
         } catch (err) {
-          console.error(err);
+          logHandledError("Friends load failed", err);
           setFriends([]);
         }
       };
@@ -174,7 +175,7 @@ export default function EditListsPage() {
 
         setResults(withPosters);
       } catch (err) {
-        console.error(err);
+        logHandledError("Movie search failed", err);
         setResults([]);
       } finally {
         setLoadingSearch(false);
@@ -277,7 +278,7 @@ export default function EditListsPage() {
       setSaveMessage(`Saved "${trimmed}"`);
       setTimeout(() => setSaveMessage(""), 2200);
     } catch (err) {
-      console.error(err);
+      logHandledError("List rename failed", err);
       setSaveMessage("Could not save list.");
     }
   };
@@ -320,7 +321,7 @@ export default function EditListsPage() {
           await saveListUpdate(selectedList.id, { movies });
         }
       } catch (err) {
-        console.error(err);
+        logHandledError("Movie remove failed", err);
         setSaveMessage("Could not remove movie.");
       }
   };
@@ -392,7 +393,7 @@ export default function EditListsPage() {
         setQuery("");
         setResults([]);
       } catch (err) {
-        console.error(err);
+        logHandledError("Movie add failed", err);
         setSaveMessage("Could not add movie.");
       }
   };
@@ -425,7 +426,7 @@ export default function EditListsPage() {
 
       setSaveMessage("");
     } catch (err) {
-      console.error(err);
+      logHandledError("List delete failed", err);
       setSaveMessage("Could not delete list.");
     }
   };
@@ -488,7 +489,7 @@ export default function EditListsPage() {
         setShowSharePanel(false);
         setSaveMessage("Shared list updated.");
       } catch (err) {
-        console.error(err);
+        logHandledError("List share failed", err);
         setSaveMessage("Could not share list.");
       }
   };
