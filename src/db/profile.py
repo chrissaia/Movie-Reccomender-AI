@@ -29,6 +29,35 @@ def _dump_list(value: list[str] | None) -> str:
     return json.dumps(value or [])
 
 
+def _unique_values(values: list[str]) -> list[str]:
+    seen = set()
+    unique = []
+
+    for value in values:
+        normalized = str(value).strip()
+        if not normalized or normalized.lower() in seen:
+            continue
+
+        seen.add(normalized.lower())
+        unique.append(normalized)
+
+    return unique
+
+
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name = ?
+        """,
+        (table_name,),
+    ).fetchone()
+
+    return row is not None
+
+
 def _split_pipe(value) -> list[str]:
     if value is None:
         return []
@@ -214,6 +243,14 @@ def get_profile_home(user_id: str) -> dict:
     try:
         profile = _get_profile(conn, user_id)
         onboarding = _get_onboarding(conn, user_id)
+        disliked_movie_titles = _get_disliked_movie_titles(conn, user_id)
+        if disliked_movie_titles:
+            onboarding = {
+                **onboarding,
+                "disliked_movies": _unique_values(
+                    onboarding.get("disliked_movies", []) + disliked_movie_titles
+                ),
+            }
         personal_lists = _get_personal_lists(conn, user_id)
         shared_lists = _get_shared_lists(conn, user_id)
         friends = _get_friends(conn, user_id)
@@ -354,6 +391,24 @@ def _get_onboarding(conn: sqlite3.Connection, user_id: str) -> dict:
         "favorite_movies": _json_list(row["favorite_movies"]),
         "disliked_movies": _json_list(row["disliked_movies"]),
     }
+
+
+def _get_disliked_movie_titles(conn: sqlite3.Connection, user_id: str) -> list[str]:
+    if not _table_exists(conn, "user_disliked_movies"):
+        return []
+
+    rows = conn.execute(
+        """
+        SELECT title
+        FROM user_disliked_movies
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 20
+        """,
+        (user_id,),
+    ).fetchall()
+
+    return [row["title"] for row in rows if row["title"]]
 
 
 def _get_personal_lists(conn: sqlite3.Connection, user_id: str) -> list[dict]:
