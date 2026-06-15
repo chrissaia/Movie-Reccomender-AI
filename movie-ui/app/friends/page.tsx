@@ -2,12 +2,14 @@
 
 import { SignInButton, useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import AppHeader from "../components/AppHeader";
 import { API_BASE_URL } from "../lib/config";
 import type { FriendsResponse, UserProfile } from "../types";
 
 export default function FriendsPage() {
+  const router = useRouter();
   const { user, isSignedIn, isLoaded } = useUser();
   const userId = user?.id;
 
@@ -294,6 +296,14 @@ export default function FriendsPage() {
           font-size: 14px;
         }
 
+        .user-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
         .section {
           margin-bottom: 22px;
         }
@@ -361,12 +371,20 @@ export default function FriendsPage() {
                       <div className="user-email">{profile.email}</div>
                     </div>
 
-                    <button
-                      className="primary-btn"
-                      onClick={() => sendRequest(profile.user_id)}
-                    >
-                      Add
-                    </button>
+                    <div className="user-actions">
+                      <button
+                        className="pill-btn"
+                        onClick={() => router.push(`/profile/${profile.user_id}`)}
+                      >
+                        View
+                      </button>
+                      <button
+                        className="primary-btn"
+                        onClick={() => sendRequest(profile.user_id)}
+                      >
+                        Add
+                      </button>
+                    </div>
                   </div>
                 ))}
 
@@ -392,12 +410,22 @@ export default function FriendsPage() {
                         </div>
                       </div>
 
-                      <button
-                        className="danger-btn"
-                        onClick={() => removeFriend(friend.id)}
-                      >
-                        Remove
-                      </button>
+                      <div className="user-actions">
+                        <button
+                          className="pill-btn"
+                          onClick={() =>
+                            router.push(`/profile/${friend.other_user_id}`)
+                          }
+                        >
+                          View
+                        </button>
+                        <button
+                          className="danger-btn"
+                          onClick={() => removeFriend(friend.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   ))}
 
