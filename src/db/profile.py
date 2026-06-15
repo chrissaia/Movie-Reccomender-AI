@@ -240,6 +240,43 @@ def get_profile_home(user_id: str) -> dict:
         conn.close()
 
 
+def get_friend_profile(user_id: str, viewer_user_id: str) -> dict | None:
+    conn = get_connection(SQLITE_DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        if user_id != viewer_user_id and not _are_accepted_friends(
+            conn,
+            user_id,
+            viewer_user_id,
+        ):
+            return None
+
+        profile = _get_profile(conn, user_id)
+        movie_ids = _collect_movie_ids(conn, user_id)
+        taste_summary = _build_taste_summary(conn, movie_ids)
+        shared_lists = _get_shared_lists(conn, user_id)
+        friends = _get_friends(conn, user_id)
+
+        return {
+            "profile": {
+                "user_id": profile["user_id"],
+                "name": profile["name"],
+                "bio": profile["bio"],
+                "avatar_url": profile["avatar_url"],
+            },
+            "taste_summary": taste_summary,
+            "stats": {
+                "shared_lists_count": len(shared_lists),
+                "friends_count": len(friends),
+                "unique_movies_count": len(set(movie_ids)),
+            },
+            "shared_lists": shared_lists[:4],
+        }
+    finally:
+        conn.close()
+
+
 def _get_profile(conn: sqlite3.Connection, user_id: str) -> dict:
     row = conn.execute(
         """
@@ -263,6 +300,28 @@ def _get_profile(conn: sqlite3.Connection, user_id: str) -> dict:
         }
 
     return dict(row)
+
+
+def _are_accepted_friends(
+    conn: sqlite3.Connection,
+    first_user_id: str,
+    second_user_id: str,
+) -> bool:
+    row = conn.execute(
+        """
+        SELECT id
+        FROM friendships
+        WHERE status = 'accepted'
+          AND (
+            (requester_user_id = ? AND receiver_user_id = ?)
+            OR (requester_user_id = ? AND receiver_user_id = ?)
+          )
+        LIMIT 1
+        """,
+        (first_user_id, second_user_id, second_user_id, first_user_id),
+    ).fetchone()
+
+    return row is not None
 
 
 def _get_onboarding(conn: sqlite3.Connection, user_id: str) -> dict:
