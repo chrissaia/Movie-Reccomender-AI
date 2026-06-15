@@ -88,6 +88,7 @@ export default function ProfilePage() {
   const [movieDescription, setMovieDescription] = useState("");
   const [ratingMessage, setRatingMessage] = useState("");
   const [savingRating, setSavingRating] = useState(false);
+  const [editingBio, setEditingBio] = useState(false);
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
   const clerkName =
@@ -206,6 +207,7 @@ export default function ProfilePage() {
       }
 
       setMessage("Profile saved.");
+      setEditingBio(false);
       await loadProfile();
     } catch (err) {
       logHandledError("Profile save failed", err);
@@ -487,6 +489,14 @@ export default function ProfilePage() {
           color: rgba(255,255,255,0.72);
           font-size: 17px;
           line-height: 1.55;
+        }
+
+        .profile-bio-text {
+          color: rgba(255,255,255,0.68);
+          font-size: 15px;
+          line-height: 1.55;
+          max-width: 720px;
+          margin: 10px 0 0;
         }
 
         .grid {
@@ -812,16 +822,23 @@ export default function ProfilePage() {
 
                 <div className="profile-copy">
                   <h1 className="hero-title">{name || "Your Movie Profile"}</h1>
-                  <div className="hero-sub">
-                    Your personal home base for lists, friends, preferences, and movie taste.
-                  </div>
+                  <p className="profile-bio-text">
+                    {bio ||
+                      "Add a short bio so friends know what kind of movie night you are usually in the mood for."}
+                  </p>
                 </div>
               </div>
 
               <div className="profile-side">
                 <div className="profile-side-actions">
-                  <button className="primary-btn" onClick={() => openUserProfile()}>
-                    Edit Profile
+                  <button
+                    className="primary-btn"
+                    onClick={() => setEditingBio((prev) => !prev)}
+                  >
+                    {editingBio ? "Close Editor" : "Edit Bio"}
+                  </button>
+                  <button className="secondary-btn" onClick={() => openUserProfile()}>
+                    Account
                   </button>
                   <button
                     className="secondary-btn"
@@ -831,20 +848,22 @@ export default function ProfilePage() {
                   </button>
                 </div>
 
-                <div className="bio-editor">
-                  <div className="section-title">Bio</div>
-                  <textarea
-                    className="textarea"
-                    value={bio}
-                    onChange={(event) => setBio(event.target.value)}
-                    placeholder="Add a short movie-night bio..."
-                  />
-                  <div className="bio-editor-actions">
-                    <button className="primary-btn" onClick={saveProfile}>
-                      Save Bio
-                    </button>
+                {editingBio && (
+                  <div className="bio-editor">
+                    <div className="section-title">Bio</div>
+                    <textarea
+                      className="textarea"
+                      value={bio}
+                      onChange={(event) => setBio(event.target.value)}
+                      placeholder="Add a short movie-night bio..."
+                    />
+                    <div className="bio-editor-actions">
+                      <button className="primary-btn" onClick={saveProfile}>
+                        Save Bio
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </section>
 
