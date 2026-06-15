@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import AppHeader from "../components/AppHeader";
 import { API_BASE_URL, FALLBACK_POSTER } from "../lib/config";
 import { formatScore } from "../lib/format";
+import { logHandledError } from "../lib/log";
 import { getTmdbDetails } from "../lib/tmdb";
 import type {
   CombinedRecommendationResponse,
@@ -105,7 +106,7 @@ export default function ResultsPage() {
         setRows(enriched);
         setHeadline(data.headline ?? "");
       } catch (err) {
-        console.error(err);
+        logHandledError("Recommendation load failed", err);
         setError("Could not load recommendations.");
       } finally {
         setLoading(false);
@@ -149,7 +150,7 @@ export default function ResultsPage() {
       setListName("");
       setTimeout(() => setSaveMessage(""), 2500);
     } catch (err) {
-      console.error(err);
+      logHandledError("List save failed", err);
       setSaveMessage("Could not save list.");
     }
   };
