@@ -12,7 +12,9 @@ from src.db.profile import (
 )
 
 from src.db.movie_ratings import (
+    dislike_movie,
     ensure_movie_rating_tables,
+    list_disliked_movie_ids,
     upsert_movie_rating,
 )
 
@@ -203,6 +205,11 @@ class MovieRatingRequest(BaseModel):
     description: str | None = None
 
 
+class MovieDislikeRequest(BaseModel):
+    movie_id: int
+    title: str
+
+
 
 def require_user_id(x_user_id: str | None) -> str:
     if not x_user_id:
@@ -249,12 +256,21 @@ def recommend_by_movie(req: RecommendRequest):
 
 
 @app.post("/recommend/combined", response_model=CombinedRecommendationResponse)
-def recommend_combined(req: CombinedRecommendRequest):
+def recommend_combined(
+    req: CombinedRecommendRequest,
+    x_user_id: str | None = Header(default=None),
+):
     try:
+        disliked_movie_ids = []
+        if x_user_id:
+            ensure_movie_rating_tables()
+            disliked_movie_ids = list_disliked_movie_ids(x_user_id)
+
         return predict_combined(
             movie_ids=req.movie_ids,
             top_k=req.top_k,
             min_support=1,
+            exclude_movie_ids=disliked_movie_ids,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -578,10 +594,12 @@ def recommend_from_shared_list(
     if not movie_ids:
         raise HTTPException(status_code=400, detail="Shared list has no movies")
 
+    ensure_movie_rating_tables()
     return predict_combined(
         movie_ids=movie_ids,
         top_k=top_k,
         min_support=1,
+        exclude_movie_ids=list_disliked_movie_ids(user_id),
     )
 
 
@@ -654,4 +672,25 @@ def save_movie_rating(
         title=req.title,
         rating=req.rating,
         description=req.description,
+    )
+
+
+@app.get("/profile/disliked-movies")
+def get_disliked_movies(x_user_id: str | None = Header(default=None)):
+    user_id = require_user_id(x_user_id)
+    ensure_movie_rating_tables()
+    return {"movie_ids": list_disliked_movie_ids(user_id)}
+
+
+@app.post("/profile/disliked-movies")
+def save_disliked_movie(
+    req: MovieDislikeRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = require_user_id(x_user_id)
+    ensure_movie_rating_tables()
+    return dislike_movie(
+        user_id=user_id,
+        movie_id=req.movie_id,
+        title=req.title,
     )
