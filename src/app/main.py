@@ -1,13 +1,19 @@
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.db.profile import (
     ensure_profile_tables,
+    get_friend_profile,
     get_profile_home,
     update_profile,
     update_onboarding_preferences,
+)
+
+from src.db.movie_ratings import (
+    ensure_movie_rating_tables,
+    upsert_movie_rating,
 )
 
 from src.serving.recommend import (
@@ -55,7 +61,17 @@ from src.db.shared_lists import (
 )
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ensure_user_list_tables()
+    ensure_social_tables()
+    ensure_shared_list_tables()
+    ensure_profile_tables()
+    ensure_movie_rating_tables()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,14 +80,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    ensure_user_list_tables()
-    ensure_social_tables()
-    ensure_shared_list_tables()
-    ensure_profile_tables()
-    yield
 
 
 class RecommendRequest(BaseModel):
@@ -186,6 +194,13 @@ class OnboardingPreferencesRequest(BaseModel):
     preferred_decades: list[str] = []
     favorite_movies: list[str] = []
     disliked_movies: list[str] = []
+
+
+class MovieRatingRequest(BaseModel):
+    movie_id: int
+    title: str
+    rating: float = Field(ge=0.5, le=5)
+    description: str | None = None
 
 
 
@@ -579,7 +594,27 @@ def recommend_from_shared_list(
 @app.get("/profile")
 def get_profile(x_user_id: str | None = Header(default=None)):
     user_id = require_user_id(x_user_id)
+    ensure_profile_tables()
     return get_profile_home(user_id)
+
+
+@app.get("/profiles/{profile_user_id}")
+def get_friend_profile_view(
+    profile_user_id: str,
+    x_user_id: str | None = Header(default=None),
+):
+    viewer_user_id = require_user_id(x_user_id)
+    ensure_profile_tables()
+
+    profile = get_friend_profile(
+        user_id=profile_user_id,
+        viewer_user_id=viewer_user_id,
+    )
+
+    if profile is None:
+        raise HTTPException(status_code=403, detail="Profile is not available")
+
+    return profile
 
 
 @app.put("/profile")
@@ -604,3 +639,19 @@ def update_my_onboarding(
 ):
     user_id = require_user_id(x_user_id)
     return update_onboarding_preferences(user_id, req.model_dump())
+
+
+@app.post("/profile/movie-ratings")
+def save_movie_rating(
+    req: MovieRatingRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = require_user_id(x_user_id)
+    ensure_movie_rating_tables()
+    return upsert_movie_rating(
+        user_id=user_id,
+        movie_id=req.movie_id,
+        title=req.title,
+        rating=req.rating,
+        description=req.description,
+    )
