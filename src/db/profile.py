@@ -254,6 +254,7 @@ def get_profile_home(user_id: str) -> dict:
         personal_lists = _get_personal_lists(conn, user_id)
         shared_lists = _get_shared_lists(conn, user_id)
         friends = _get_friends(conn, user_id)
+        watchlist = _get_watchlist(conn, user_id)
 
         movie_ids = _collect_movie_ids(conn, user_id)
         taste_summary = _build_taste_summary(conn, movie_ids)
@@ -271,6 +272,7 @@ def get_profile_home(user_id: str) -> dict:
             "lists": personal_lists,
             "shared_lists": shared_lists,
             "friends": friends,
+            "watchlist": watchlist,
             "recent_activity": _get_recent_activity(conn, user_id),
         }
     finally:
@@ -291,9 +293,20 @@ def get_friend_profile(user_id: str, viewer_user_id: str) -> dict | None:
 
         profile = _get_profile(conn, user_id)
         movie_ids = _collect_movie_ids(conn, user_id)
+        viewer_movie_ids = _collect_movie_ids(conn, viewer_user_id)
         taste_summary = _build_taste_summary(conn, movie_ids)
+        viewer_taste_summary = _build_taste_summary(conn, viewer_movie_ids)
         shared_lists = _get_shared_lists(conn, user_id)
         friends = _get_friends(conn, user_id)
+        taste_match = _build_taste_match(
+            conn=conn,
+            viewer_user_id=viewer_user_id,
+            friend_user_id=user_id,
+            viewer_movie_ids=viewer_movie_ids,
+            friend_movie_ids=movie_ids,
+            viewer_taste_summary=viewer_taste_summary,
+            friend_taste_summary=taste_summary,
+        )
 
         return {
             "profile": {
@@ -303,6 +316,7 @@ def get_friend_profile(user_id: str, viewer_user_id: str) -> dict | None:
                 "avatar_url": profile["avatar_url"],
             },
             "taste_summary": taste_summary,
+            "taste_match": taste_match,
             "stats": {
                 "shared_lists_count": len(shared_lists),
                 "friends_count": len(friends),
@@ -310,6 +324,81 @@ def get_friend_profile(user_id: str, viewer_user_id: str) -> dict | None:
             },
             "shared_lists": shared_lists[:4],
         }
+    finally:
+        conn.close()
+
+
+def get_friend_lists(user_id: str, viewer_user_id: str) -> dict | None:
+    conn = get_connection(SQLITE_DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        if user_id != viewer_user_id and not _are_accepted_friends(
+            conn,
+            user_id,
+            viewer_user_id,
+        ):
+            return None
+
+        profile = _get_profile(conn, user_id)
+        return {
+            "profile": {
+                "user_id": profile["user_id"],
+                "name": profile["name"],
+                "avatar_url": profile["avatar_url"],
+            },
+            "lists": _get_personal_lists_with_movies(conn, user_id),
+        }
+    finally:
+        conn.close()
+
+
+def get_friend_list_for_copy(
+    user_id: str,
+    viewer_user_id: str,
+    list_id: str,
+) -> dict | None:
+    conn = get_connection(SQLITE_DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        if user_id != viewer_user_id and not _are_accepted_friends(
+            conn,
+            user_id,
+            viewer_user_id,
+        ):
+            return None
+
+        lists = _get_personal_lists_with_movies(conn, user_id)
+        return next((item for item in lists if item["id"] == list_id), None)
+    finally:
+        conn.close()
+
+
+def get_friend_taste_match(user_id: str, viewer_user_id: str) -> dict | None:
+    conn = get_connection(SQLITE_DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        if user_id != viewer_user_id and not _are_accepted_friends(
+            conn,
+            user_id,
+            viewer_user_id,
+        ):
+            return None
+
+        friend_movie_ids = _collect_movie_ids(conn, user_id)
+        viewer_movie_ids = _collect_movie_ids(conn, viewer_user_id)
+
+        return _build_taste_match(
+            conn=conn,
+            viewer_user_id=viewer_user_id,
+            friend_user_id=user_id,
+            viewer_movie_ids=viewer_movie_ids,
+            friend_movie_ids=friend_movie_ids,
+            viewer_taste_summary=_build_taste_summary(conn, viewer_movie_ids),
+            friend_taste_summary=_build_taste_summary(conn, friend_movie_ids),
+        )
     finally:
         conn.close()
 
@@ -409,6 +498,71 @@ def _get_disliked_movie_titles(conn: sqlite3.Connection, user_id: str) -> list[s
     ).fetchall()
 
     return [row["title"] for row in rows if row["title"]]
+
+
+def _get_watchlist(conn: sqlite3.Connection, user_id: str) -> list[dict]:
+    if not _table_exists(conn, "user_watchlist_movies"):
+        return []
+
+    rows = conn.execute(
+        """
+        SELECT movie_id, title, status, created_at, updated_at
+        FROM user_watchlist_movies
+        WHERE user_id = ?
+        ORDER BY updated_at DESC
+        """,
+        (user_id,),
+    ).fetchall()
+
+    return [
+        {
+            "movie_id": int(row["movie_id"]),
+            "title": row["title"],
+            "status": row["status"],
+            "createdAt": row["created_at"],
+            "updatedAt": row["updated_at"],
+        }
+        for row in rows
+    ]
+
+
+def _get_personal_lists_with_movies(conn: sqlite3.Connection, user_id: str) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT id, name, created_at
+        FROM user_lists
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        """,
+        (user_id,),
+    ).fetchall()
+
+    lists = []
+    for row in rows:
+        movies = conn.execute(
+            """
+            SELECT movie_id, title
+            FROM user_list_movies
+            WHERE list_id = ?
+            ORDER BY position ASC
+            """,
+            (row["id"],),
+        ).fetchall()
+
+        lists.append({
+            "id": row["id"],
+            "name": row["name"],
+            "createdAt": row["created_at"],
+            "movies": [
+                {
+                    "movie_id": int(movie["movie_id"]),
+                    "title": movie["title"],
+                }
+                for movie in movies
+            ],
+        })
+
+    return lists
 
 
 def _get_personal_lists(conn: sqlite3.Connection, user_id: str) -> list[dict]:
@@ -524,6 +678,157 @@ def _collect_movie_ids(conn: sqlite3.Connection, user_id: str) -> list[int]:
     ).fetchall()
 
     return [int(row["movie_id"]) for row in personal + shared]
+
+
+def _collect_saved_movies(conn: sqlite3.Connection, user_id: str) -> list[dict]:
+    personal = conn.execute(
+        """
+        SELECT lm.movie_id, lm.title
+        FROM user_list_movies lm
+        JOIN user_lists ul
+          ON lm.list_id = ul.id
+        WHERE ul.user_id = ?
+        """,
+        (user_id,),
+    ).fetchall()
+
+    shared = conn.execute(
+        """
+        SELECT sm.movie_id, sm.title
+        FROM shared_list_movies sm
+        JOIN shared_list_members mem
+          ON sm.shared_list_id = mem.shared_list_id
+        WHERE mem.user_id = ?
+        """,
+        (user_id,),
+    ).fetchall()
+
+    movies_by_id = {}
+    for row in personal + shared:
+        movie_id = int(row["movie_id"])
+        if movie_id not in movies_by_id:
+            movies_by_id[movie_id] = {
+                "movie_id": movie_id,
+                "title": row["title"],
+            }
+
+    return list(movies_by_id.values())
+
+
+def _overlap(left: list[str], right: list[str], limit: int = 8) -> list[str]:
+    right_values = {item.lower() for item in right}
+    matches = []
+
+    for item in left:
+        if item.lower() in right_values and item not in matches:
+            matches.append(item)
+
+        if len(matches) >= limit:
+            break
+
+    return matches
+
+
+def _jaccard(left: list[str], right: list[str]) -> float:
+    left_values = {item.lower() for item in left}
+    right_values = {item.lower() for item in right}
+
+    if not left_values and not right_values:
+        return 0.0
+
+    return len(left_values & right_values) / max(len(left_values | right_values), 1)
+
+
+def _unique_ints(values: list[int], limit: int) -> list[int]:
+    unique = []
+    seen = set()
+
+    for value in values:
+        movie_id = int(value)
+        if movie_id in seen:
+            continue
+
+        seen.add(movie_id)
+        unique.append(movie_id)
+
+        if len(unique) >= limit:
+            break
+
+    return unique
+
+
+def _build_taste_match(
+    conn: sqlite3.Connection,
+    viewer_user_id: str,
+    friend_user_id: str,
+    viewer_movie_ids: list[int],
+    friend_movie_ids: list[int],
+    viewer_taste_summary: dict,
+    friend_taste_summary: dict,
+) -> dict:
+    overlap = {
+        "genres": _overlap(
+            viewer_taste_summary.get("favorite_genres", []),
+            friend_taste_summary.get("favorite_genres", []),
+        ),
+        "actors": _overlap(
+            viewer_taste_summary.get("favorite_actors", []),
+            friend_taste_summary.get("favorite_actors", []),
+        ),
+        "directors": _overlap(
+            viewer_taste_summary.get("favorite_directors", []),
+            friend_taste_summary.get("favorite_directors", []),
+        ),
+        "keywords": _overlap(
+            viewer_taste_summary.get("favorite_keywords", []),
+            friend_taste_summary.get("favorite_keywords", []),
+        ),
+    }
+
+    weighted_score = (
+        0.35
+        * _jaccard(
+            viewer_taste_summary.get("favorite_genres", []),
+            friend_taste_summary.get("favorite_genres", []),
+        )
+        + 0.25
+        * _jaccard(
+            viewer_taste_summary.get("favorite_actors", []),
+            friend_taste_summary.get("favorite_actors", []),
+        )
+        + 0.25
+        * _jaccard(
+            viewer_taste_summary.get("favorite_directors", []),
+            friend_taste_summary.get("favorite_directors", []),
+        )
+        + 0.15
+        * _jaccard(
+            viewer_taste_summary.get("favorite_keywords", []),
+            friend_taste_summary.get("favorite_keywords", []),
+        )
+    )
+
+    viewer_saved_movies = _collect_saved_movies(conn, viewer_user_id)
+    friend_saved_movies = _collect_saved_movies(conn, friend_user_id)
+    viewer_saved_by_id = {movie["movie_id"]: movie for movie in viewer_saved_movies}
+    friend_saved_by_id = {movie["movie_id"]: movie for movie in friend_saved_movies}
+    shared_movie_ids = [
+        movie_id for movie_id in viewer_saved_by_id if movie_id in friend_saved_by_id
+    ]
+
+    curated_seed_movie_ids = _unique_ints(
+        shared_movie_ids + viewer_movie_ids[:8] + friend_movie_ids[:8],
+        limit=12,
+    )
+
+    return {
+        "similarity_score": round(float(weighted_score), 4),
+        "overlap": overlap,
+        "shared_saved_movies": [
+            viewer_saved_by_id[movie_id] for movie_id in shared_movie_ids[:8]
+        ],
+        "curated_seed_movie_ids": curated_seed_movie_ids,
+    }
 
 
 def _build_taste_summary(conn: sqlite3.Connection, movie_ids: list[int]) -> dict:
