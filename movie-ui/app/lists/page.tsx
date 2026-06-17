@@ -270,7 +270,13 @@ export default function ListsPage() {
           flex-direction: column;
         }
 
-        .list-title {
+        .list-title-v1 {
+          font-size: 22px;
+          font-weight: 900;
+          margin: 0 130px 10px 0;
+          letter-spacing: -0.03em;
+        }
+        .list-title-v2 {
           font-size: 22px;
           font-weight: 900;
           margin: 0 0 10px 0;
@@ -433,14 +439,18 @@ export default function ListsPage() {
               const remaining = Math.max(list.movies.length - preview.length, 0);
 
               return (
-                <article className="list-card" key={list.id}>
-                  {list.kind === "shared" && list.sharedWith && list.sharedWith.length > 0 && (
-                      <div className="shared-badge">
-                        <span>👥</span>
-                        <span>+ {list.sharedWith.join(", ")}</span>
-                      </div>
-                  )}
-                  <h2 className="list-title">{list.name}</h2>
+                  <article className="list-card" key={list.id}>
+                    {list.kind === "shared" && list.sharedWith && list.sharedWith.length > 0 ? (
+                      <>
+                        <div className="shared-badge">
+                          <span>👥</span>
+                          <span>+ {list.sharedWith.join(", ")}</span>
+                        </div>
+                        <h2 className="list-title-v1">{list.name}</h2>
+                      </>
+                    ) : (
+                      <h2 className="list-title-v2">{list.name}</h2>
+                    )}
 
                   <div className="list-meta">
                     {list.movies.length} movies · Saved {formatDate(list.createdAt)}
