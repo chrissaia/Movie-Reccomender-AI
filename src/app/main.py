@@ -5,16 +5,22 @@ from pydantic import BaseModel, Field
 
 from src.db.profile import (
     ensure_profile_tables,
+    get_friend_list_for_copy,
+    get_friend_lists,
     get_friend_profile,
+    get_friend_taste_match,
     get_profile_home,
     update_profile,
     update_onboarding_preferences,
 )
 
 from src.db.movie_ratings import (
+    add_watchlist_movie,
     dislike_movie,
     ensure_movie_rating_tables,
     list_disliked_movie_ids,
+    list_watchlist_movies,
+    remove_watchlist_movie,
     upsert_movie_rating,
 )
 
@@ -24,6 +30,7 @@ from src.serving.recommend import (
     recommendation_to_dict,
     search_result_to_dict,
 )
+from src.db.movie_catalog import discover_movies, get_movie_detail
 
 from src.serving.inference import (
     predict_combined,
@@ -210,6 +217,20 @@ class MovieDislikeRequest(BaseModel):
     title: str
 
 
+class WatchlistMovieRequest(BaseModel):
+    movie_id: int
+    title: str
+    status: str = "planned"
+
+
+class CopySharedListRequest(BaseModel):
+    name: str | None = None
+
+
+class CreateCuratedTasteProfileRequest(BaseModel):
+    name: str | None = None
+
+
 
 def require_user_id(x_user_id: str | None) -> str:
     if not x_user_id:
@@ -230,6 +251,22 @@ def search(q: str, limit: int = 10):
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {e}") from e
+
+
+@app.get("/movies/discover")
+def discover(q: str, limit: int = 30):
+    try:
+        return discover_movies(q, limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Discovery failed: {e}") from e
+
+
+@app.get("/movies/{movie_id}")
+def movie_detail(movie_id: int):
+    movie = get_movie_detail(movie_id)
+    if movie is None:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    return movie
 
 
 
@@ -262,15 +299,18 @@ def recommend_combined(
 ):
     try:
         disliked_movie_ids = []
+        negative_preferences = None
         if x_user_id:
             ensure_movie_rating_tables()
             disliked_movie_ids = list_disliked_movie_ids(x_user_id)
+            negative_preferences = get_profile_home(x_user_id).get("onboarding_preferences")
 
         return predict_combined(
             movie_ids=req.movie_ids,
             top_k=req.top_k,
             min_support=1,
             exclude_movie_ids=disliked_movie_ids,
+            negative_preferences=negative_preferences,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -576,6 +616,32 @@ def delete_one_shared_list(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@app.post("/shared-lists/{shared_list_id}/copy-to-my-lists")
+def copy_shared_list_to_my_lists(
+    shared_list_id: str,
+    req: CopySharedListRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = require_user_id(x_user_id)
+
+    try:
+        shared_list = get_shared_list(user_id, shared_list_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    return create_user_list(
+        user_id=user_id,
+        name=req.name or f"Copy of {shared_list['name']}",
+        movies=[
+            {
+                "movie_id": movie["movie_id"],
+                "title": movie["title"],
+            }
+            for movie in shared_list["movies"]
+        ],
+    )
+
+
 @app.post("/shared-lists/{shared_list_id}/recommend")
 def recommend_from_shared_list(
     shared_list_id: str,
@@ -600,6 +666,7 @@ def recommend_from_shared_list(
         top_k=top_k,
         min_support=1,
         exclude_movie_ids=list_disliked_movie_ids(user_id),
+        negative_preferences=get_profile_home(user_id).get("onboarding_preferences"),
     )
 
 
@@ -633,6 +700,162 @@ def get_friend_profile_view(
         raise HTTPException(status_code=403, detail="Profile is not available")
 
     return profile
+
+
+@app.get("/profiles/{profile_user_id}/lists")
+def get_friend_lists_view(
+    profile_user_id: str,
+    x_user_id: str | None = Header(default=None),
+):
+    viewer_user_id = require_user_id(x_user_id)
+    ensure_profile_tables()
+    ensure_user_list_tables()
+
+    payload = get_friend_lists(
+        user_id=profile_user_id,
+        viewer_user_id=viewer_user_id,
+    )
+
+    if payload is None:
+        raise HTTPException(status_code=403, detail="Lists are not available")
+
+    return payload
+
+
+@app.post("/profiles/{profile_user_id}/lists/{list_id}/copy")
+def copy_friend_list_to_my_lists(
+    profile_user_id: str,
+    list_id: str,
+    req: CopySharedListRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    viewer_user_id = require_user_id(x_user_id)
+    ensure_profile_tables()
+    ensure_user_list_tables()
+
+    source_list = get_friend_list_for_copy(
+        user_id=profile_user_id,
+        viewer_user_id=viewer_user_id,
+        list_id=list_id,
+    )
+
+    if source_list is None:
+        raise HTTPException(status_code=404, detail="List is not available")
+
+    return create_user_list(
+        user_id=viewer_user_id,
+        name=req.name or f"Copy of {source_list['name']}",
+        movies=source_list["movies"],
+    )
+
+
+@app.post("/profiles/{profile_user_id}/recommend")
+def recommend_from_friend_profile(
+    profile_user_id: str,
+    top_k: int = 12,
+    x_user_id: str | None = Header(default=None),
+):
+    viewer_user_id = require_user_id(x_user_id)
+    ensure_profile_tables()
+    ensure_movie_rating_tables()
+
+    taste_match = get_friend_taste_match(
+        user_id=profile_user_id,
+        viewer_user_id=viewer_user_id,
+    )
+
+    if taste_match is None:
+        raise HTTPException(status_code=403, detail="Profile is not available")
+
+    seed_movie_ids = taste_match.get("curated_seed_movie_ids", [])
+    if not seed_movie_ids:
+        raise HTTPException(status_code=400, detail="Not enough taste data yet")
+
+    return predict_combined(
+        movie_ids=seed_movie_ids,
+        top_k=top_k,
+        min_support=1,
+        exclude_movie_ids=list_disliked_movie_ids(viewer_user_id),
+        negative_preferences=get_profile_home(viewer_user_id).get("onboarding_preferences"),
+    )
+
+
+@app.get("/profiles/{profile_user_id}/taste-match")
+def get_friend_taste_match_view(
+    profile_user_id: str,
+    x_user_id: str | None = Header(default=None),
+):
+    viewer_user_id = require_user_id(x_user_id)
+    ensure_profile_tables()
+
+    taste_match = get_friend_taste_match(
+        user_id=profile_user_id,
+        viewer_user_id=viewer_user_id,
+    )
+
+    if taste_match is None:
+        raise HTTPException(status_code=403, detail="Profile is not available")
+
+    return taste_match
+
+
+@app.post("/profiles/{profile_user_id}/curated-taste-profile")
+def create_curated_taste_profile(
+    profile_user_id: str,
+    req: CreateCuratedTasteProfileRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    viewer_user_id = require_user_id(x_user_id)
+    ensure_profile_tables()
+    ensure_shared_list_tables()
+    ensure_movie_rating_tables()
+
+    taste_match = get_friend_taste_match(
+        user_id=profile_user_id,
+        viewer_user_id=viewer_user_id,
+    )
+
+    if taste_match is None:
+        raise HTTPException(status_code=403, detail="Profile is not available")
+
+    seed_movie_ids = taste_match.get("curated_seed_movie_ids", [])
+    if not seed_movie_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Not enough saved movies to create a curated taste profile",
+        )
+
+    recommendations = predict_combined(
+        movie_ids=seed_movie_ids,
+        top_k=12,
+        min_support=1,
+        exclude_movie_ids=list_disliked_movie_ids(viewer_user_id),
+        negative_preferences=get_profile_home(viewer_user_id).get("onboarding_preferences"),
+    ).get("recommendations", [])
+
+    movies = [
+        {
+            "movie_id": movie["movie_id"],
+            "title": movie["title"],
+        }
+        for movie in recommendations
+    ]
+
+    if not movies:
+        raise HTTPException(
+            status_code=400,
+            detail="No recommendations were available for this taste match",
+        )
+
+    try:
+        return create_shared_list(
+            owner_user_id=viewer_user_id,
+            name=req.name or "Curated Taste Profile",
+            member_user_ids=[profile_user_id],
+            movies=movies,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.put("/profile")
@@ -673,6 +896,39 @@ def save_movie_rating(
         rating=req.rating,
         description=req.description,
     )
+
+
+@app.get("/profile/watchlist")
+def get_watchlist(x_user_id: str | None = Header(default=None)):
+    user_id = require_user_id(x_user_id)
+    ensure_movie_rating_tables()
+    return list_watchlist_movies(user_id)
+
+
+@app.post("/profile/watchlist")
+def save_watchlist_movie(
+    req: WatchlistMovieRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = require_user_id(x_user_id)
+    ensure_movie_rating_tables()
+    return add_watchlist_movie(
+        user_id=user_id,
+        movie_id=req.movie_id,
+        title=req.title,
+        status=req.status,
+    )
+
+
+@app.delete("/profile/watchlist/{movie_id}")
+def delete_watchlist_movie(
+    movie_id: int,
+    x_user_id: str | None = Header(default=None),
+):
+    user_id = require_user_id(x_user_id)
+    ensure_movie_rating_tables()
+    remove_watchlist_movie(user_id, movie_id)
+    return {"ok": True}
 
 
 @app.get("/profile/disliked-movies")
