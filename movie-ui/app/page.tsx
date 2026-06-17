@@ -76,8 +76,19 @@ export default function Home() {
     setSelected((prev) => prev.filter((m) => m.movie_id !== movieId));
   };
 
+  const isSentenceSearch = query.trim().split(/\s+/).length >= 4;
+
+  const discoverFromSentence = () => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    router.push(`/discover?q=${encodeURIComponent(trimmed)}`);
+  };
+
   const seeResults = () => {
-    if (!selected.length) return;
+    if (!selected.length) {
+      discoverFromSentence();
+      return;
+    }
     localStorage.setItem("selectedMovies", JSON.stringify(selected));
     router.push("/results");
   };
@@ -136,7 +147,10 @@ export default function Home() {
             onFocus={() => {
               if (results.length > 0) setShowDropdown(true);
             }}
-            placeholder="Search movies..."
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && isSentenceSearch) discoverFromSentence();
+            }}
+            placeholder="Search movies or describe a vibe..."
             style={{
               width: "100%",
               padding: "22px 24px",
@@ -248,6 +262,25 @@ export default function Home() {
             </div>
           ))}
         </div>
+
+        {isSentenceSearch && selected.length === 0 && (
+          <button
+            onClick={discoverFromSentence}
+            style={{
+              padding: "14px 22px",
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.08)",
+              color: "#dbeafe",
+              fontSize: 15,
+              fontWeight: 800,
+              marginBottom: 14,
+              cursor: "pointer",
+            }}
+          >
+            Search this movie idea
+          </button>
+        )}
 
         <button
           onClick={seeResults}
