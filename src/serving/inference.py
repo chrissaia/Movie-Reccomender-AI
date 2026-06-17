@@ -159,6 +159,44 @@ def _clean_optional_movie_ids(movie_ids: list[int] | set[int] | None) -> set[int
     return cleaned
 
 
+def _negative_preference_penalty(movie: dict, negative_preferences: dict | None) -> float:
+    if not negative_preferences:
+        return 0.0
+
+    disliked_genres = {str(item).strip().lower() for item in negative_preferences.get("disliked_genres", []) if str(item).strip()}
+    disliked_movies = {str(item).strip().lower() for item in negative_preferences.get("disliked_movies", []) if str(item).strip()}
+    disliked_moods = {str(item).strip().lower() for item in negative_preferences.get("disliked_moods", []) if str(item).strip()}
+
+    text = " | ".join(
+        str(movie.get(field) or "")
+        for field in (
+            "name",
+            "genre",
+            "tmdb_genres",
+            "tmdb_keywords",
+            "tmdb_overview",
+            "tmdb_directors",
+            "tmdb_cast_top5",
+        )
+    ).lower()
+
+    penalty = 0.0
+    for genre in disliked_genres:
+        if genre and genre in text:
+            penalty += 0.12
+
+    for title in disliked_movies:
+        title_terms = [term for term in title.split() if len(term) > 3]
+        if title and (title in text or any(term in text for term in title_terms)):
+            penalty += 0.08
+
+    for mood in disliked_moods:
+        if mood and mood in text:
+            penalty += 0.06
+
+    return min(penalty, 0.35)
+
+
 def _min_max_normalize(values: list[float]) -> list[float]:
     if not values:
         return []
@@ -1304,6 +1342,7 @@ def predict_single(
     top_k: int = DEFAULT_TOP_K,
     candidate_pool: int = 50,
     exclude_movie_ids: list[int] | set[int] | None = None,
+    negative_preferences: dict | None = None,
 ) -> dict:
     _validate_positive_int(movie_id, "movie_id")
     _validate_positive_int(top_k, "top_k")
@@ -1406,6 +1445,7 @@ def predict_combined(
     candidate_pool: int = DEFAULT_CANDIDATE_POOL,
     min_support: int = DEFAULT_MIN_SUPPORT,
     exclude_movie_ids: list[int] | set[int] | None = None,
+    negative_preferences: dict | None = None,
 ) -> dict:
     """
     Main inference function for movie recommendation serving.
@@ -1466,6 +1506,7 @@ def predict_combined(
                     candidate_pool=candidate_pool,
                     min_support=min_support,
                     exclude_movie_ids=exclude_id_set,
+                    negative_preferences=negative_preferences,
                 )
 
                 if Status is not None and StatusCode is not None:
@@ -1484,6 +1525,7 @@ def predict_combined(
             candidate_pool=candidate_pool,
             min_support=min_support,
             exclude_movie_ids=exclude_id_set,
+            negative_preferences=negative_preferences,
         )
 
 
@@ -1493,6 +1535,7 @@ def _predict_internal(
     candidate_pool: int,
     min_support: int,
     exclude_movie_ids: set[int] | None = None,
+    negative_preferences: dict | None = None,
 ) -> dict:
     # -----------------------------------------------------
     # STEP 1: Fetch selected movies
@@ -1551,6 +1594,7 @@ def _predict_internal(
                 "vote_average": float(candidate_movie.get("tmdb_vote_average") or 0.0),
                 "vote_count": float(candidate_movie.get("tmdb_vote_count") or 0.0),
                 "popularity": float(candidate_movie.get("tmdb_popularity") or 0.0),
+                "movie": candidate_movie,
                 "agg_features": agg_features,
             }
         )
@@ -1572,7 +1616,11 @@ def _predict_internal(
         ranker_scores,
         ranker_norm,
     ):
-        final_score = (0.30 * row["combined_score"]) + (0.70 * ranker_score_norm)
+        penalty = _negative_preference_penalty(row.get("movie", {}), negative_preferences)
+        final_score = max(
+            0.0,
+            (0.30 * row["combined_score"]) + (0.70 * ranker_score_norm) - penalty,
+        )
 
         final_rows.append(
             {
@@ -1589,6 +1637,7 @@ def _predict_internal(
                 "vote_average": row.get("vote_average", 0.0),
                 "vote_count": row.get("vote_count", 0.0),
                 "popularity": row.get("popularity", 0.0),
+                "negative_penalty": round(float(penalty), 6),
             }
         )
 
