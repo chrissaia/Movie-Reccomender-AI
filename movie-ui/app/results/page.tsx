@@ -4,6 +4,7 @@ import { useUser } from "@clerk/nextjs";
 import { useEffect, useMemo, useState } from "react";
 
 import AppHeader from "../components/AppHeader";
+import MovieDetailModal from "../components/MovieDetailModal";
 import { API_BASE_URL, FALLBACK_POSTER } from "../lib/config";
 import { formatScore } from "../lib/format";
 import { logHandledError } from "../lib/log";
@@ -73,6 +74,12 @@ export default function ResultsPage() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [listName, setListName] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [activeMovie, setActiveMovie] = useState<RecommendationItem | null>(null);
+  const selectedMovieIds = useMemo(
+    () => selected.map((movie) => movie.movie_id),
+    [selected]
+  );
+  const selectedMovieIdKey = selectedMovieIds.join(",");
 
   useEffect(() => {
     const raw = localStorage.getItem("selectedMovies");
@@ -82,7 +89,11 @@ export default function ResultsPage() {
 
   useEffect(() => {
     const loadRecommendations = async () => {
-      if (selected.length === 0) {
+      const movieIds = selectedMovieIdKey
+        ? selectedMovieIdKey.split(",").map((movieId) => Number(movieId))
+        : [];
+
+      if (movieIds.length === 0) {
         setLoading(false);
         return;
       }
@@ -103,7 +114,7 @@ export default function ResultsPage() {
           method: "POST",
           headers,
           body: JSON.stringify({
-            movie_ids: selected.map((movie) => movie.movie_id),
+            movie_ids: movieIds,
             top_k: 10,
           }),
         });
@@ -140,7 +151,7 @@ export default function ResultsPage() {
     };
 
     loadRecommendations();
-  }, [isSignedIn, selected, userId]);
+  }, [isSignedIn, selectedMovieIdKey, userId]);
 
   useEffect(() => {
     const loadDislikedMovies = async () => {
@@ -648,7 +659,16 @@ export default function ResultsPage() {
 
               <div className="movie-row">
                 {row.items.map((movie) => (
-                  <article className="movie-card" key={`${row.title}-${movie.movie_id}`}>
+                  <article
+                    className="movie-card"
+                    key={`${row.title}-${movie.movie_id}`}
+                    onClick={() => setActiveMovie(movie)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") setActiveMovie(movie);
+                    }}
+                  >
                     <button
                       type="button"
                       className="dislike-btn"
@@ -691,6 +711,8 @@ export default function ResultsPage() {
             </section>
           ))}
       </div>
+
+      <MovieDetailModal movie={activeMovie} onClose={() => setActiveMovie(null)} />
 
       {showSaveModal && (
         <div className="modal-backdrop">
