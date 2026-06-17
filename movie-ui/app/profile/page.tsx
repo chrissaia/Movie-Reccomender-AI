@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AppHeader from "../components/AppHeader";
-import { API_BASE_URL } from "../lib/config";
+import MovieDetailModal from "../components/MovieDetailModal";
+import { API_BASE_URL, FALLBACK_POSTER } from "../lib/config";
 import { logHandledError } from "../lib/log";
+import { getTmdbPoster } from "../lib/tmdb";
 
 type ProfilePayload = {
   profile: {
@@ -32,12 +34,14 @@ type ProfilePayload = {
   lists: { id: string; name: string; createdAt: string }[];
   shared_lists: { id: string; name: string; createdAt: string }[];
   friends: { user_id: string; name: string | null; email: string | null }[];
+  watchlist: { movie_id: number; title: string; status: string; createdAt: string }[];
   recent_activity: { type: string; label: string; createdAt: string }[];
 };
 
 type MovieSearchResult = {
   movie_id: number;
   title: string;
+  poster?: string;
 };
 
 const emptyPrefs = {
@@ -62,11 +66,6 @@ function emptyCopy(label: string) {
   return <div className="muted">No {label} saved yet.</div>;
 }
 
-function starFillPercent(rating: number, starNumber: number) {
-  if (rating >= starNumber) return 100;
-  if (rating >= starNumber - 0.5) return 50;
-  return 0;
-}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -82,13 +81,15 @@ export default function ProfilePage() {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [rankQuery, setRankQuery] = useState("");
   const [rankResults, setRankResults] = useState<MovieSearchResult[]>([]);
-  const [selectedRankMovie, setSelectedRankMovie] =
-    useState<MovieSearchResult | null>(null);
-  const [movieRating, setMovieRating] = useState(3);
-  const [movieDescription, setMovieDescription] = useState("");
+  const [rankingMovie, setRankingMovie] = useState<MovieSearchResult | null>(null);
+  const [loadingRankSearch, setLoadingRankSearch] = useState(false);
   const [ratingMessage, setRatingMessage] = useState("");
-  const [savingRating, setSavingRating] = useState(false);
   const [editingBio, setEditingBio] = useState(false);
+  const [watchlistOpen, setWatchlistOpen] = useState(true);
+  const [editingPrefs, setEditingPrefs] = useState(false);
+  const [prefsDraft, setPrefsDraft] = useState<Record<string, string>>(
+    Object.fromEntries(Object.keys(emptyPrefs).map((key) => [key, ""]))
+  );
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
   const clerkName =
@@ -114,10 +115,16 @@ export default function ProfilePage() {
       setData(payload);
       setName(payload.profile.name ?? clerkName ?? "");
       setBio(payload.profile.bio ?? "");
-      setPrefs({
+      const mergedPrefs = {
         ...emptyPrefs,
         ...payload.onboarding_preferences,
-      });
+      };
+      setPrefs(mergedPrefs);
+      setPrefsDraft(
+        Object.fromEntries(
+          Object.entries(mergedPrefs).map(([key, values]) => [key, values.join(", ")])
+        )
+      );
       setMessage("");
     } catch (err) {
       logHandledError("Profile load failed", err);
@@ -162,6 +169,8 @@ export default function ProfilePage() {
         return;
       }
 
+      setLoadingRankSearch(true);
+
       try {
         const res = await fetch(
           `${API_BASE_URL}/movies/search?q=${encodeURIComponent(rankQuery)}&limit=6`
@@ -173,10 +182,18 @@ export default function ProfilePage() {
         }
 
         const data: MovieSearchResult[] = await res.json();
-        setRankResults(data);
+        const withPosters = await Promise.all(
+          data.map(async (movie) => ({
+            ...movie,
+            poster: await getTmdbPoster(movie.title),
+          }))
+        );
+        setRankResults(withPosters);
       } catch (err) {
         logHandledError("Movie ranking search failed", err);
         setRankResults([]);
+      } finally {
+        setLoadingRankSearch(false);
       }
     };
 
@@ -230,56 +247,72 @@ export default function ProfilePage() {
     data?.recent_activity.filter((item) => item.type === "watched_movie") ?? [];
 
   const chooseRankMovie = (movie: MovieSearchResult) => {
-    setSelectedRankMovie(movie);
-    setMovieRating(3);
-    setMovieDescription("");
+    setRankingMovie(movie);
     setRatingMessage("");
     setRankQuery("");
     setRankResults([]);
   };
 
-  const saveMovieRating = async () => {
-    if (!selectedRankMovie || !userId) return;
+  const saveOnboardingPreferences = async () => {
+    if (!userId) return;
 
-    setSavingRating(true);
-    setRatingMessage("");
+    const payload = Object.fromEntries(
+      Object.entries(prefsDraft).map(([key, value]) => [
+        key,
+        value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ])
+    );
 
     try {
-      const res = await fetch(`${API_BASE_URL}/profile/movie-ratings`, {
-        method: "POST",
+      const res = await fetch(`${API_BASE_URL}/profile/onboarding`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "X-User-Id": userId,
         },
-        body: JSON.stringify({
-          movie_id: selectedRankMovie.movie_id,
-          title: selectedRankMovie.title,
-          rating: movieRating,
-          description: movieDescription,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        setRatingMessage("Could not save this rating.");
+        setMessage("Could not save preferences.");
         return;
       }
 
-      setRatingMessage(`Saved your rating for ${selectedRankMovie.title}.`);
-      setSelectedRankMovie(null);
-      setMovieDescription("");
+      setMessage("Preferences saved.");
+      setEditingPrefs(false);
+      await loadProfile();
     } catch (err) {
-      logHandledError("Movie rating save failed", err);
-      setRatingMessage("Could not reach the rating service.");
-    } finally {
-      setSavingRating(false);
+      logHandledError("Onboarding preferences save failed", err);
+      setMessage("Could not reach the profile service.");
     }
   };
+
+  const removeFromWatchlist = async (movieId: number) => {
+    if (!userId) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile/watchlist/${movieId}`, {
+        method: "DELETE",
+        headers: { "X-User-Id": userId },
+      });
+
+      if (!res.ok) return;
+      await loadProfile();
+    } catch (err) {
+      logHandledError("Watchlist remove failed", err);
+    }
+  };
+
+
 
   return (
     <main className="profile-page">
       <style>{`
         .profile-page {
-          min-height: 100vh;
+          min-height: 240vh;
           padding: 28px 24px 64px;
           background:
             radial-gradient(circle at 18% 12%, rgba(168, 85, 247, 0.22), transparent 34%),
@@ -566,47 +599,85 @@ export default function ProfilePage() {
         }
 
         .rank-search {
-          position: relative;
+          margin-top: 16px;
         }
 
-        .rank-results {
-          position: absolute;
-          top: calc(100% + 8px);
-          left: 0;
-          right: 0;
-          z-index: 20;
-          border: 1px solid rgba(255,255,255,0.1);
+        .rank-results-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 16px;
+          margin-top: 16px;
+        }
+
+        .rank-card {
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.05);
+          color: #e2e8f0;
           border-radius: 18px;
-          overflow: hidden;
-          background: #111827;
-          box-shadow: 0 18px 48px rgba(0,0,0,0.36);
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          cursor: pointer;
+          text-align: left;
+          transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
         }
 
-        .rank-result {
+        .rank-card:hover,
+        .rank-card:focus-visible {
+          background: rgba(255,255,255,0.08);
+          border-color: rgba(255,255,255,0.16);
+          transform: translateY(-2px);
+        }
+
+        .rank-poster {
           width: 100%;
-          border: none;
-          border-bottom: 1px solid rgba(255,255,255,0.08);
+          aspect-ratio: 2 / 3;
+          object-fit: cover;
+          display: block;
+          border-radius: 12px;
+          background: rgba(255,255,255,0.05);
+        }
+
+        .rank-title {
+          font-weight: 850;
+          line-height: 1.35;
+          min-height: 38px;
+        }
+
+        .watchlist-toggle {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          border: 0;
           background: transparent;
           color: #f8fafc;
           cursor: pointer;
-          padding: 12px 14px;
+          padding: 0;
           text-align: left;
-          font-weight: 800;
         }
 
-        .rank-result:hover {
-          background: rgba(255,255,255,0.08);
+        .watchlist-scroll {
+          max-height: 260px;
+          overflow-y: auto;
+          padding-right: 6px;
+          margin-top: 12px;
         }
 
-        .rating-card-backdrop {
-          position: fixed;
-          inset: 0;
-          z-index: 60;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-          background: rgba(0,0,0,0.66);
+        .preference-editor {
+          display: grid;
+          gap: 12px;
+        }
+
+        .preference-field label {
+          display: block;
+          color: #c4b5fd;
+          font-size: 12px;
+          font-weight: 950;
+          text-transform: uppercase;
+          margin-bottom: 6px;
         }
 
         .rating-card {
@@ -867,6 +938,7 @@ export default function ProfilePage() {
               </div>
             </section>
 
+
             {message && <div className="message">{message}</div>}
 
             <div className="profile-card-grid">
@@ -929,132 +1001,33 @@ export default function ProfilePage() {
                 </div>
               </section>
               <section className="panel">
-                <h2 className="panel-title">My Friends</h2>
-                <div className="stat-card">
-                  <div className="stat-number">{data.stats.friends_count}</div>
-                  <div className="stat-label">Friends</div>
+                <div className="row-head">
+                  <h2 className="panel-title">My Preferences</h2>
+                  <button className="pill-btn" onClick={() => setEditingPrefs((editing) => !editing)}>
+                    {editingPrefs ? "Close" : "Edit"}
+                  </button>
                 </div>
 
-                <div className="card-section">
-                  {data.friends.length === 0 && emptyCopy("friends")}
-                  {data.friends.slice(0, 4).map((friend) => {
-                    const friendName = friend.name || friend.email || "Friend";
-
-                    return (
-                      <div className="friend-row" key={friend.user_id}>
-                        <div className="friend-avatar" aria-hidden="true">
-                          {friendName[0]?.toUpperCase() ?? "F"}
-                        </div>
-                        <div>
-                          <div className="friend-name">{friendName}</div>
-                          {friend.email && <div className="friend-sub">{friend.email}</div>}
-                        </div>
+                {editingPrefs && (
+                  <div className="card-section preference-editor">
+                    {Object.keys(emptyPrefs).map((key) => (
+                      <div className="preference-field" key={key}>
+                        <label>{pretty(key)}</label>
+                        <input
+                          className="input"
+                          value={prefsDraft[key] ?? ""}
+                          onChange={(event) =>
+                            setPrefsDraft((draft) => ({ ...draft, [key]: event.target.value }))
+                          }
+                          placeholder="Comma-separated answers"
+                        />
                       </div>
-                    );
-                  })}
-                </div>
-
-                <div className="card-actions">
-                  <button className="primary-btn" onClick={() => router.push("/friends")}>
-                    View Friends
-                  </button>
-                </div>
-              </section>
-
-              <section className="panel">
-                <h2 className="panel-title">My Lists</h2>
-
-                <div className="card-section">
-                  <div className="section-title">Personal Saved Lists</div>
-                  {data.lists.length === 0 && emptyCopy("personal lists")}
-                  {data.lists.map((list) => (
-                    <div className="list-row" key={list.id}>
-                      <strong>{list.name}</strong>
-                      <button
-                        className="secondary-btn"
-                        onClick={() =>
-                          router.push(`/edit-list?kind=personal&listId=${list.id}`)
-                        }
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="card-section">
-                  <div className="section-title">Shared Lists</div>
-                  {data.shared_lists.length === 0 && emptyCopy("shared lists")}
-                  {data.shared_lists.map((list) => (
-                    <div className="list-row" key={list.id}>
-                      <strong>{list.name}</strong>
-                      <button
-                        className="secondary-btn"
-                        onClick={() =>
-                          router.push(`/edit-list?kind=shared&listId=${list.id}`)
-                        }
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="card-actions">
-                  <button className="primary-btn" onClick={() => router.push("/lists")}>
-                    View All Lists
-                  </button>
-                </div>
-              </section>
-
-
-
-              <section className="panel">
-                <h2 className="panel-title">My Activity</h2>
-
-                <div className="card-section">
-                  <div className="section-title">Recently Created Lists</div>
-                  {createdListActivity.length === 0 && emptyCopy("created lists")}
-                  {createdListActivity.map((item) => (
-                    <div className="list-row" key={`${item.type}-${item.createdAt}`}>
-                      <span>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="card-section">
-                  <div className="section-title">Recently Edited Shared Lists</div>
-                  {editedSharedActivity.length === 0 && emptyCopy("edited shared lists")}
-                  {editedSharedActivity.map((item) => (
-                    <div className="list-row" key={`${item.type}-${item.createdAt}`}>
-                      <span>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="card-section">
-                  <div className="section-title">Recently Rated Movies</div>
-                  {ratedMovieActivity.length === 0 && emptyCopy("rated movies")}
-                  {ratedMovieActivity.map((item) => (
-                    <div className="list-row" key={`${item.type}-${item.createdAt}`}>
-                      <span>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="card-section">
-                  <div className="section-title">Recently Watched Movies</div>
-                  {watchedMovieActivity.length === 0 && emptyCopy("watched movies")}
-                  {watchedMovieActivity.map((item) => (
-                    <div className="list-row" key={`${item.type}-${item.createdAt}`}>
-                      <span>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="panel">
-                <h2 className="panel-title">My Preferences</h2>
+                    ))}
+                    <button className="primary-btn" onClick={saveOnboardingPreferences}>
+                      Save Preferences
+                    </button>
+                  </div>
+                )}
 
                 <div className="card-section">
                   <div className="section-title">Onboarding Answers</div>
@@ -1119,113 +1092,101 @@ export default function ProfilePage() {
               </section>
 
 
-
               <section className="panel">
-                <h2 className="panel-title">Rank Some Movies</h2>
-                <p className="muted">
-                  Search for a movie, rate it from half a star to five stars, and add a quick note.
-                </p>
-
-                <div className="rank-search">
-                  <input
-                    className="input"
-                    value={rankQuery}
-                    onChange={(event) => setRankQuery(event.target.value)}
-                    placeholder="Search movies to rank..."
-                  />
-
-                  {rankResults.length > 0 && (
-                    <div className="rank-results">
-                      {rankResults.map((movie) => (
-                        <button
-                          className="rank-result"
-                          key={movie.movie_id}
-                          onClick={() => chooseRankMovie(movie)}
-                        >
-                          {movie.title}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                <h2 className="panel-title">My Friends</h2>
+                <div className="stat-card">
+                  <div className="stat-number">{data.stats.friends_count}</div>
+                  <div className="stat-label">Friends</div>
                 </div>
 
-                {ratingMessage && <div className="message">{ratingMessage}</div>}
+                <div className="card-section">
+                  {data.friends.length === 0 && emptyCopy("friends")}
+                  {data.friends.slice(0, 4).map((friend) => {
+                    const friendName = friend.name || friend.email || "Friend";
+
+                    return (
+                      <div className="friend-row" key={friend.user_id}>
+                        <div className="friend-avatar" aria-hidden="true">
+                          {friendName[0]?.toUpperCase() ?? "F"}
+                        </div>
+                        <div>
+                          <div className="friend-name">{friendName}</div>
+                          {friend.email && <div className="friend-sub">{friend.email}</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="card-actions">
+                  <button className="primary-btn" onClick={() => router.push("/friends")}>
+                    View Friends
+                  </button>
+                </div>
+              </section>
+
+              <section className="panel">
+                <button className="watchlist-toggle" onClick={() => setWatchlistOpen((open) => !open)}>
+                  <h2 className="panel-title">My Watchlist</h2>
+                  <span>{watchlistOpen ? "Hide" : "Show"}</span>
+                </button>
+
+                {watchlistOpen && (
+                  <div className="watchlist-scroll">
+                    {(data.watchlist ?? []).length === 0 && emptyCopy("watchlist movies")}
+                    {(data.watchlist ?? []).map((movie) => (
+                      <div className="list-row" key={movie.movie_id}>
+                        <span>{movie.title}</span>
+                        <button className="pill-btn" onClick={() => removeFromWatchlist(movie.movie_id)}>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
+            <section className="panel">
+              <h2 className="panel-title">Rank Some Movies</h2>
+              <p className="muted">
+                Search for a movie, open the poster card, rate it from half a star to five stars, and add a quick note.
+              </p>
 
-            {selectedRankMovie && (
-              <div className="rating-card-backdrop">
-                <div className="rating-card">
-                  <h2 className="rating-movie-title">{selectedRankMovie.title}</h2>
-                  <div className="rating-movie-id">
-                    Movie ID: {selectedRankMovie.movie_id}
-                  </div>
+              <div className="rank-search">
+                <input
+                  className="input"
+                  value={rankQuery}
+                  onChange={(event) => setRankQuery(event.target.value)}
+                  placeholder="Search movies to rank..."
+                />
 
-                  <div className="section-title">Your Rating</div>
-                  <div className="apple-star-row">
-                    {[1, 2, 3, 4, 5].map((starNumber) => (
+                {loadingRankSearch && <div className="muted">Searching...</div>}
+
+                {!loadingRankSearch && rankResults.length > 0 && (
+                  <div className="rank-results-grid">
+                    {rankResults.map((movie) => (
                       <button
-                        aria-label={`Rate ${starNumber} stars`}
-                        className="apple-star"
-                        key={starNumber}
-                        style={{
-                          "--star-fill": `${starFillPercent(
-                            movieRating,
-                            starNumber
-                          )}%`,
-                        } as React.CSSProperties}
+                        className="rank-card"
+                        key={movie.movie_id}
+                        onClick={() => chooseRankMovie(movie)}
                       >
-                        <span className="apple-star-empty">
-                          <span>★</span>
-                        </span>
-                        <span className="apple-star-fill" aria-hidden="true">
-                          <span>★</span>
-                        </span>
-                        <span
-                          className="apple-star-left"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setMovieRating(starNumber - 0.5);
-                          }}
+                        <img
+                          className="rank-poster"
+                          src={movie.poster || FALLBACK_POSTER}
+                          alt={movie.title}
                         />
-                        <span
-                          className="apple-star-right"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setMovieRating(starNumber);
-                          }}
-                        />
+                        <div className="rank-title">{movie.title}</div>
+                        <span className="pill-btn">Open Rating Card</span>
                       </button>
                     ))}
                   </div>
-                  <div className="rating-value">{movieRating} out of 5</div>
-
-                  <div className="section-title">Description</div>
-                  <textarea
-                    className="textarea"
-                    value={movieDescription}
-                    onChange={(event) => setMovieDescription(event.target.value)}
-                    placeholder="What did you think? What mood did it fit?"
-                  />
-
-                  <div className="rating-actions">
-                    <button
-                      className="secondary-btn"
-                      onClick={() => setSelectedRankMovie(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="primary-btn"
-                      disabled={savingRating}
-                      onClick={saveMovieRating}
-                    >
-                      {savingRating ? "Saving..." : "Save Rating"}
-                    </button>
-                  </div>
-                </div>
+                )}
               </div>
-            )}
+
+              {ratingMessage && <div className="message">{ratingMessage}</div>}
+            </section>
+
+            <MovieDetailModal movie={rankingMovie} onClose={() => setRankingMovie(null)} />
           </>
         )}
       </div>
