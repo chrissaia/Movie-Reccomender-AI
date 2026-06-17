@@ -1,0 +1,47 @@
+# Git / GitHub
+.git
+.github
+.gitignore
+
+# Python local envs and caches
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Local secrets
+.env
+.env.*
+*.env
+
+# Mac / editor files
+.DS_Store
+.idea
+.vscode
+
+# Frontend is deployed separately, not inside backend Docker image
+movie-ui
+movie-ui/node_modules
+movie-ui/.next
+movie-ui/out
+movie-ui/tsconfig.tsbuildinfo
+
+# Not needed at runtime
+notebooks
+mlruns
+*.ipynb
+
+# Training/raw/intermediate data not needed for API serving
+data/raw
+data/interim
+
+# Logs / temp
+*.log
+tmp
+temp

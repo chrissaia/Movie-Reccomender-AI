@@ -1,9 +1,17 @@
-# venvs
+# Python
 .venv/
 venv/
+env/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# OS cruft
+# Mac / editor
 .DS_Store
+.idea/
+.vscode/
 
 # Python cache
 __pycache__/
@@ -14,7 +22,24 @@ __pycache__/
 data/interim/
 data/raw/
 data/processed/
-mlruns
+
+# ML / experiments
+mlruns/
+notebooks/.ipynb_checkpoints/
 
 #other
 ROADMAP.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Frontend
+movie-ui/node_modules/
+movie-ui/.next/
+movie-ui/out/
+movie-ui/tsconfig.tsbuildinfo
+
+# Logs
+*.log
