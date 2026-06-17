@@ -72,6 +72,61 @@ def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, sq
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
 
 
+def _get_shared_lists_with_movies_for_user(
+    conn: sqlite3.Connection,
+    user_id: str,
+) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT 
+            sl.id,
+            sl.name,
+            sl.owner_user_id,
+            sl.created_at,
+            sl.updated_at
+        FROM shared_lists sl
+        JOIN shared_list_members m
+          ON sl.id = m.shared_list_id
+        WHERE m.user_id = ?
+        ORDER BY sl.updated_at DESC
+        """,
+        (user_id,),
+    ).fetchall()
+
+    lists = []
+
+    for row in rows:
+        movies = conn.execute(
+            """
+            SELECT movie_id, title, position
+            FROM shared_list_movies
+            WHERE shared_list_id = ?
+            ORDER BY position ASC
+            """,
+            (row["id"],),
+        ).fetchall()
+
+        lists.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "kind": "shared",
+                "owner_user_id": row["owner_user_id"],
+                "createdAt": row["created_at"],
+                "updatedAt": row["updated_at"],
+                "movies": [
+                    {
+                        "movie_id": int(movie["movie_id"]),
+                        "title": movie["title"],
+                    }
+                    for movie in movies
+                ],
+            }
+        )
+
+    return lists
+
+
 def ensure_profile_tables() -> None:
     conn = get_connection(SQLITE_DB_PATH)
 
@@ -341,13 +396,24 @@ def get_friend_lists(user_id: str, viewer_user_id: str) -> dict | None:
             return None
 
         profile = _get_profile(conn, user_id)
+
+        personal_lists = [
+            {
+                **list_item,
+                "kind": "personal",
+            }
+            for list_item in _get_personal_lists_with_movies(conn, user_id)
+        ]
+
+        shared_lists = _get_shared_lists_with_movies_for_user(conn, user_id)
+
         return {
             "profile": {
                 "user_id": profile["user_id"],
                 "name": profile["name"],
                 "avatar_url": profile["avatar_url"],
             },
-            "lists": _get_personal_lists_with_movies(conn, user_id),
+            "lists": personal_lists + shared_lists,
         }
     finally:
         conn.close()
