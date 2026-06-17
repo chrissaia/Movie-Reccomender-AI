@@ -1,7 +1,7 @@
 "use client";
 
 import { SignInButton, useUser } from "@clerk/nextjs";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import AppHeader from "../components/AppHeader";
@@ -43,7 +43,7 @@ function normalizeSharedList(list: SharedList): UnifiedList {
   };
 }
 
-export default function EditListsPage() {
+function EditListsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const listIdFromUrl = searchParams.get("listId");
@@ -1092,5 +1092,13 @@ export default function EditListsPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function EditListsPage() {
+  return (
+    <Suspense fallback={<main className="edit-page"><div className="empty">Loading lists...</div></main>}>
+      <EditListsContent />
+    </Suspense>
   );
 }
