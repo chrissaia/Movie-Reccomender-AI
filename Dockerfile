@@ -1,27 +1,36 @@
+# Backend API container for Cloud Run.
 FROM python:3.11-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PIP_NO_CACHE_DIR=1
-ENV PORT=8000
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8080 \
+    PYTHONPATH=/app \
+    MPLCONFIGDIR=/tmp/matplotlib
 
 WORKDIR /app
 
-# libgomp1 is commonly needed by scikit-learn/numpy wheels at runtime.
+# libgomp1 is required by LightGBM/scikit-learn wheels at runtime.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 \
+    && apt-get install -y --no-install-recommends libgomp1 curl \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY prod-requirements.txt .
 
 RUN python -m pip install --upgrade pip \
-    && pip install -r requirements.txt
+    && pip install --no-cache-dir -r prod-requirements.txt
 
-COPY src ./src
-COPY artifacts ./artifacts
-COPY data ./data
-COPY scripts ./scripts
+RUN useradd --create-home --shell /usr/sbin/nologin app
 
-EXPOSE 8000
+COPY --chown=app:app src ./src
+COPY --chown=app:app data ./data
 
-CMD ["sh", "-c", "uvicorn src.app.main:app --host 0.0.0.0 --port ${PORT}"]
+RUN mkdir -p /app/data/db /app/data/processed /tmp/matplotlib \
+    && chown -R app:app /app /tmp/matplotlib
+
+EXPOSE 8080
+
+USER app
+
+CMD ["sh", "-c", "python -m uvicorn src.app.main:app --host 0.0.0.0 --port ${PORT}"]
