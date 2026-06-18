@@ -435,7 +435,15 @@ def get_friend_list_for_copy(
         ):
             return None
 
-        lists = _get_personal_lists_with_movies(conn, user_id)
+        personal_lists = [
+            {
+                **list_item,
+                "kind": "personal",
+            }
+            for list_item in _get_personal_lists_with_movies(conn, user_id)
+        ]
+        shared_lists = _get_shared_lists_with_movies_for_user(conn, user_id)
+        lists = personal_lists + shared_lists
         return next((item for item in lists if item["id"] == list_id), None)
     finally:
         conn.close()

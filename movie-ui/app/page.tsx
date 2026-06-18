@@ -263,25 +263,6 @@ export default function Home() {
           ))}
         </div>
 
-        {isSentenceSearch && selected.length === 0 && (
-          <button
-            onClick={discoverFromSentence}
-            style={{
-              padding: "14px 22px",
-              borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.08)",
-              color: "#dbeafe",
-              fontSize: 15,
-              fontWeight: 800,
-              marginBottom: 14,
-              cursor: "pointer",
-            }}
-          >
-            Search this movie idea
-          </button>
-        )}
-
         <button
           onClick={seeResults}
           style={{

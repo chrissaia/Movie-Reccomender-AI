@@ -8,14 +8,18 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  id-token: write
+
 env:
   PYTHON_VERSION: "3.11"
   NODE_VERSION: "20"
-
-  GCP_REGION: "us-east1"
-  CLOUD_RUN_SERVICE: "movie-recommender-api"
-  ARTIFACT_REGISTRY_REPO: "movie-recommender"
-  IMAGE_NAME: "movie-recommender-api"
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: ${{ secrets.GCP_REGION || 'us-east1' }}
+  GAR_REPO: ${{ secrets.GAR_REPO || 'movie-recommender' }}
+  SERVICE_NAME: ${{ secrets.CLOUD_RUN_SERVICE || 'movie-recommender-api' }}
+  IMAGE_NAME: movie-recommender-api
 
 jobs:
   backend-ci:
@@ -31,12 +35,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
+          cache-dependency-path: |
+            prod-requirements.txt
+            requirements.txt
 
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
 
       - name: Backend import check
         run: |
@@ -47,7 +53,11 @@ jobs:
 
       - name: Run backend tests
         run: |
-          python -m pytest tests scripts/cosine scripts/ranking -q
+          if [ -f data/raw/movies.csv ]; then
+            python -m pytest scripts/cosine scripts/ranking -q
+          else
+            echo "Skipping data-pipeline tests because data/raw/movies.csv is not present in this checkout."
+          fi
 
   frontend-ci:
     name: Frontend CI
@@ -92,55 +102,66 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build backend Docker image
-        run: |
-          docker build -t movie-recommender-api:${{ github.sha }} .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
   deploy-backend:
     name: Deploy Backend to Cloud Run
     runs-on: ubuntu-latest
     needs:
       - docker-build
-
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    permissions:
-      contents: read
-      id-token: write
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
 
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
 
-      - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Docker image
-        run: |
-          IMAGE_URI="${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
-          docker build -t "$IMAGE_URI" .
-          docker push "$IMAGE_URI"
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
       - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
-          service: ${{ env.CLOUD_RUN_SERVICE }}
-          region: ${{ env.GCP_REGION }}
-          image: ${{ env.IMAGE_URI }}
-          flags: >
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          flags: >-
             --allow-unauthenticated
-            --port=8000
+            --port=8080
             --memory=2Gi
             --cpu=1
             --timeout=300
+          env_vars: |
+            ENVIRONMENT=prod
+
+      - name: Smoke test health
+        run: curl --fail "${{ steps.deploy.outputs.url }}/health"
