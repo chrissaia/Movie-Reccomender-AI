@@ -91,6 +91,11 @@ app.add_middleware(
 )
 
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
 class RecommendRequest(BaseModel):
     movie_id: int
     top_k: int = 5
