@@ -1,14 +1,16 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-pydantic==2.10.4
+# Full local/CI dependency set.
+# The Cloud Run Docker image installs prod-requirements.txt directly.
+-r prod-requirements.txt
 
-numpy==2.2.1
-pandas==2.2.3
-scipy==1.14.1
-scikit-learn==1.6.0
-joblib==1.4.2
-
-python-dotenv==1.0.1
-requests==2.32.3
-
+# Test tooling
 pytest==8.3.4
+httpx==0.28.1
+
+# Training and experiment tooling
+mlflow==3.11.1
+optuna==4.6.0
+matplotlib==3.10.8
+pyarrow==23.0.1
+cloudpickle==3.1.2
+graphviz==0.21
+psutil==7.2.2
