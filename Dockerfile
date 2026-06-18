@@ -27,6 +27,7 @@ COPY --chown=app:app src ./src
 COPY --chown=app:app data ./data
 
 RUN mkdir -p /app/data/db /app/data/processed /tmp/matplotlib \
+    && if [ -f /app/data/serving/movies.db ]; then cp /app/data/serving/movies.db /app/data/db/movies.db; fi \
     && chown -R app:app /app /tmp/matplotlib
 
 EXPOSE 8080
