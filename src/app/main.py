@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -82,9 +84,27 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+def _allowed_origins() -> list[str]:
+    configured = [
+        origin.strip()
+        for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+
+    return [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        *configured,
+    ]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_allowed_origins(),
+    allow_origin_regex=os.getenv(
+        "ALLOWED_ORIGIN_REGEX",
+        r"https://[a-z0-9-]+-[0-9]+\.us-east1\.run\.app",
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
