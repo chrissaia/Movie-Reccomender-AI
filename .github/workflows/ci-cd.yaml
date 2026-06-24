@@ -242,6 +242,10 @@ jobs:
             --memory=1Gi
             --cpu=1
             --timeout=300
+          env_vars: |
+            NEXT_PUBLIC_API_BASE_URL=${{ steps.backend-url.outputs.url }}
+            NEXT_PUBLIC_TMDB_API_KEY=${{ secrets.NEXT_PUBLIC_TMDB_API_KEY }}
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
 
       - name: Show frontend URL
         run: echo "Frontend deployed to ${{ steps.deploy.outputs.url }}"
