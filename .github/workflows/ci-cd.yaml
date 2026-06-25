@@ -194,12 +194,19 @@ jobs:
         run: curl --fail "${{ steps.deploy.outputs.url }}/health"
 
 
-  deploy-frontend:
+  deploy-ui:
     name: Deploy Frontend to Cloud Run
     runs-on: ubuntu-latest
     needs:
       - deploy-backend
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    env:
+      REGION: us-east1
+      PROJECT_ID: directrec-500502
+      GAR_REPO: directrec-images
+      IMAGE_NAME: movie-recommender-ui
+      SERVICE_NAME: directrec-ui
 
     steps:
       - name: Checkout repo
