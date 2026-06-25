@@ -207,6 +207,7 @@ jobs:
       GAR_REPO: directrec-images
       IMAGE_NAME: movie-recommender-ui
       SERVICE_NAME: directrec-ui
+      BACKEND_SERVICE_NAME: directrec-api
 
     steps:
       - name: Checkout repo
@@ -230,7 +231,10 @@ jobs:
       - name: Read backend URL
         id: backend-url
         run: |
-          BACKEND_URL=$(gcloud run services describe "${SERVICE_NAME}" --region "${REGION}" --format="value(status.url)")
+          BACKEND_URL=$(gcloud run services describe "${BACKEND_SERVICE_NAME}" \
+            --region "${REGION}" \
+            --format="value(status.url)")
+
           echo "url=${BACKEND_URL}" >> "$GITHUB_OUTPUT"
           echo "Using backend URL: ${BACKEND_URL}"
 
