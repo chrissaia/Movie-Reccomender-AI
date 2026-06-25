@@ -6,7 +6,7 @@ import sqlite3
 from src.db.sqlite import get_connection
 from src.utils.paths import SQLITE_DB_PATH
 
-
+# oh yeah
 def _conn() -> sqlite3.Connection:
     conn = get_connection(SQLITE_DB_PATH)
     conn.row_factory = sqlite3.Row
