@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { useSearchParams, useRouter } from "next/navigation";
 
 import AppHeader from "../components/AppHeader";
@@ -20,17 +21,21 @@ type DiscoveryMovie = {
   overview?: string;
   tmdb_overview?: string;
   tmdb_genres?: string;
+  match_reasons?: string[];
+  semantic_score?: number;
 };
 
 function DiscoverContent() {
 
   const router = useRouter();
+  const { user, isSignedIn } = useUser();
   const searchParams = useSearchParams();
   const query = searchParams.get("q") ?? "";
   const [movies, setMovies] = useState<DiscoveryMovie[]>([]);
   const [activeMovie, setActiveMovie] = useState<DiscoveryMovie | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [watchlistMessage, setWatchlistMessage] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -64,6 +69,35 @@ function DiscoverContent() {
     load();
   }, [query]);
 
+  const addToWatchlist = async (movie: DiscoveryMovie) => {
+    if (!isSignedIn || !user?.id) {
+      setWatchlistMessage("Sign in to add movies to your watchlist.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/profile/watchlist`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": user.id,
+        },
+        body: JSON.stringify({
+          movie_id: movie.movie_id,
+          title: movie.title,
+          status: "planned",
+        }),
+      });
+
+      setWatchlistMessage(
+        res.ok ? `Added ${movie.title} to your watchlist.` : "Could not add that movie."
+      );
+    } catch (err) {
+      logHandledError("Discovery watchlist save failed", err);
+      setWatchlistMessage("Could not reach the watchlist service.");
+    }
+  };
+
   return (
     <main className="min-h-screen px-6 py-7 text-slate-50 bg-[linear-gradient(135deg,#070617_0%,#10172f_38%,#312e81_100%)]">
       <div className="max-w-6xl mx-auto">
@@ -87,22 +121,48 @@ function DiscoverContent() {
 
         {loading && <div className="rounded-3xl border border-white/10 bg-white/5 p-6">Searching...</div>}
         {message && <div className="rounded-3xl border border-white/10 bg-white/5 p-6">{message}</div>}
+        {watchlistMessage && <div className="rounded-3xl border border-white/10 bg-white/5 p-4 mb-4">{watchlistMessage}</div>}
 
         <div className="grid gap-4">
           {movies.map((movie, index) => (
-            <button
+            <article
               key={movie.movie_id}
-              onClick={() => setActiveMovie(movie)}
               className="grid grid-cols-[72px_1fr_auto] items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-left hover:bg-white/8"
             >
-              <img className="h-28 w-18 rounded-xl object-cover bg-white/5" src={movie.poster || FALLBACK_POSTER} alt={movie.title} />
-              <div>
+              <button
+                className="text-left"
+                onClick={() => setActiveMovie(movie)}
+                aria-label={`Open ${movie.title}`}
+              >
+                <img className="h-28 w-18 rounded-xl object-cover bg-white/5" src={movie.poster || FALLBACK_POSTER} alt={movie.title} />
+              </button>
+              <button className="text-left" onClick={() => setActiveMovie(movie)}>
                 <div className="text-xs font-black text-violet-200 mb-1">#{index + 1}</div>
                 <div className="text-xl font-black">{movie.title}</div>
                 <div className="text-white/62 text-sm mt-1">{[movie.year, movie.tmdb_genres].filter(Boolean).join(" · ")}</div>
                 <p className="text-white/70 line-clamp-2 mt-2">{movie.overview || movie.tmdb_overview || "Open for more details."}</p>
-              </div>
-            </button>
+                {(movie.match_reasons ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {(movie.match_reasons ?? []).map((reason) => (
+                      <span
+                        className="rounded-full border border-violet-300/20 bg-violet-300/10 px-2.5 py-1 text-xs font-black text-violet-100"
+                        key={reason}
+                      >
+                        {reason}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+              {isSignedIn && (
+                <button
+                  className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-black text-slate-100 hover:bg-white/14"
+                  onClick={() => addToWatchlist(movie)}
+                >
+                  Add to Watchlist
+                </button>
+              )}
+            </article>
           ))}
         </div>
       </div>

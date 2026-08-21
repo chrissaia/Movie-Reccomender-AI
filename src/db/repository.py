@@ -104,6 +104,64 @@ def replace_neighbors(conn: sqlite3.Connection, df: pd.DataFrame) -> None:
     conn.commit()
 
 
+def replace_movie_search_index(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE VIRTUAL TABLE IF NOT EXISTS movie_search_fts USING fts5(
+            movie_id UNINDEXED,
+            title,
+            people,
+            genres,
+            keywords,
+            overview,
+            search_text
+        );
+        """
+    )
+    conn.execute("DELETE FROM movie_search_fts;")
+    conn.execute(
+        """
+        INSERT INTO movie_search_fts (
+            movie_id,
+            title,
+            people,
+            genres,
+            keywords,
+            overview,
+            search_text
+        )
+        SELECT
+            movie_id,
+            COALESCE(name, '') || ' ' || COALESCE(tmdb_title, ''),
+            COALESCE(director, '') || ' ' ||
+                COALESCE(writer, '') || ' ' ||
+                COALESCE(star, '') || ' ' ||
+                COALESCE(tmdb_cast_top5, '') || ' ' ||
+                COALESCE(tmdb_directors, '') || ' ' ||
+                COALESCE(tmdb_writers, ''),
+            COALESCE(genre, '') || ' ' || COALESCE(tmdb_genres, ''),
+            COALESCE(tmdb_keywords, '') || ' ' ||
+                COALESCE(rating, '') || ' ' ||
+                COALESCE(country, '') || ' ' ||
+                COALESCE(company, ''),
+            COALESCE(tmdb_overview, ''),
+            COALESCE(name, '') || ' ' ||
+                COALESCE(tmdb_title, '') || ' ' ||
+                COALESCE(genre, '') || ' ' ||
+                COALESCE(tmdb_genres, '') || ' ' ||
+                COALESCE(director, '') || ' ' ||
+                COALESCE(writer, '') || ' ' ||
+                COALESCE(star, '') || ' ' ||
+                COALESCE(tmdb_cast_top5, '') || ' ' ||
+                COALESCE(tmdb_directors, '') || ' ' ||
+                COALESCE(tmdb_keywords, '') || ' ' ||
+                COALESCE(tmdb_overview, '')
+        FROM movies;
+        """
+    )
+    conn.commit()
+
+
 def get_neighbors_for_movie(
     conn: sqlite3.Connection,
     source_movie_id: int,

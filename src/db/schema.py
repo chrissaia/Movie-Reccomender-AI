@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 
+DROP_MOVIE_SEARCH_FTS_TABLE = "DROP TABLE IF EXISTS movie_search_fts;"
 DROP_MOVIES_TABLE = "DROP TABLE IF EXISTS movies;"
 DROP_NEIGHBORS_TABLE = "DROP TABLE IF EXISTS movie_neighbors;"
 
@@ -77,8 +78,21 @@ CREATE INDEX IF NOT EXISTS idx_movies_name_year
 ON movies(name, year);
 """
 
+CREATE_MOVIE_SEARCH_FTS_TABLE = """
+CREATE VIRTUAL TABLE IF NOT EXISTS movie_search_fts USING fts5(
+    movie_id UNINDEXED,
+    title,
+    people,
+    genres,
+    keywords,
+    overview,
+    search_text
+);
+"""
+
 
 ALL_SCHEMA_STATEMENTS = [
+    DROP_MOVIE_SEARCH_FTS_TABLE,
     DROP_NEIGHBORS_TABLE,
     DROP_MOVIES_TABLE,
     CREATE_MOVIES_TABLE,
@@ -87,4 +101,5 @@ ALL_SCHEMA_STATEMENTS = [
     CREATE_NEIGHBORS_SCORE_INDEX,
     CREATE_MOVIES_TMDB_ID_INDEX,
     CREATE_MOVIES_NAME_YEAR_INDEX,
+    CREATE_MOVIE_SEARCH_FTS_TABLE,
 ]

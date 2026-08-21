@@ -39,7 +39,12 @@ from src.ranking.evaluate import evaluate_model
 from src.db.sqlite import get_connection
 from src.cosine.neighbors import build_topk_neighbors
 from src.db.schema import ALL_SCHEMA_STATEMENTS
-from src.db.repository import init_schema, replace_movies, replace_neighbors
+from src.db.repository import (
+    init_schema,
+    replace_movie_search_index,
+    replace_movies,
+    replace_neighbors,
+)
 
 
 from src.utils.paths import (
@@ -210,6 +215,7 @@ def run_cosine_pipeline(args: argparse.Namespace) -> None:
             conn.execute("DELETE FROM movies;")
 
             replace_movies(conn, movies_df)
+            replace_movie_search_index(conn)
             replace_neighbors(conn, neighbors_df)
         finally:
             conn.close()

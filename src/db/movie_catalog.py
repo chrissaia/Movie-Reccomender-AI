@@ -4,6 +4,7 @@ import re
 import sqlite3
 
 from src.db.sqlite import get_connection
+from src.serving.semantic_discovery import semantic_discover_movies
 from src.utils.paths import SQLITE_DB_PATH
 
 # oh yeah
@@ -67,48 +68,8 @@ def _tokens(query: str) -> list[str]:
 
 
 def discover_movies(query: str, limit: int = 30) -> list[dict]:
-    terms = _tokens(query)
-    if not terms:
-        return []
-
     conn = _conn()
     try:
-        clauses = []
-        params: list[str | int] = []
-        searchable = [
-            "LOWER(name)",
-            "LOWER(genre)",
-            "LOWER(director)",
-            "LOWER(writer)",
-            "LOWER(star)",
-            "LOWER(rating)",
-            "LOWER(tmdb_genres)",
-            "LOWER(tmdb_keywords)",
-            "LOWER(tmdb_cast_top5)",
-            "LOWER(tmdb_directors)",
-            "LOWER(tmdb_overview)",
-        ]
-
-        for term in terms:
-            term_clauses = [f"{column} LIKE ?" for column in searchable]
-            clauses.append("(" + " OR ".join(term_clauses) + ")")
-            params.extend([f"%{term}%"] * len(searchable))
-
-        params.append(limit)
-        rows = conn.execute(
-            f"""
-            SELECT *,
-                (COALESCE(score, 0) * 0.45)
-                + (COALESCE(tmdb_vote_average, 0) * 0.35)
-                + (CASE WHEN COALESCE(tmdb_vote_count, votes, 0) > 1000 THEN 1 ELSE 0 END * 0.20) AS discovery_score
-            FROM movies
-            WHERE {' OR '.join(clauses)}
-            ORDER BY discovery_score DESC, COALESCE(tmdb_popularity, 0) DESC
-            LIMIT ?
-            """,
-            params,
-        ).fetchall()
-
-        return [_movie_row_to_dict(row) for row in rows]
+        return semantic_discover_movies(conn, query, limit)
     finally:
         conn.close()
