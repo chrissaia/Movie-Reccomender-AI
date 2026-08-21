@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from src.serving.query_intent import QueryIntent
 from src.serving.semantic_discovery import semantic_discover_movies
 
 
@@ -209,3 +210,29 @@ def test_space_loneliness_query_uses_overview_and_keywords() -> None:
 
     assert results[0]["title"] == "Moon"
     assert "Space" in results[0]["match_reasons"]
+
+
+def test_llm_intent_can_add_people_to_plain_language(monkeypatch) -> None:
+    conn = make_conn()
+
+    def fake_intent(_: str) -> QueryIntent:
+        return QueryIntent(
+            people=["Christopher Nolan"],
+            genres=["thriller"],
+            moods=["scary"],
+            keywords=["dark"],
+            query_rewrite="dark scary thriller directed by Christopher Nolan",
+        )
+
+    monkeypatch.setattr(
+        "src.serving.semantic_discovery.parse_query_intent",
+        fake_intent,
+    )
+
+    try:
+        results = semantic_discover_movies(conn, "something dark and scary", 3)
+    finally:
+        conn.close()
+
+    assert results[0]["title"] == "The Dark Knight"
+    assert "Christopher Nolan" in results[0]["match_reasons"]

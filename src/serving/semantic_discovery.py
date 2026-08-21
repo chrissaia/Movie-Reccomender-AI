@@ -5,6 +5,8 @@ import re
 import sqlite3
 from dataclasses import dataclass
 
+from src.serving.query_intent import QueryIntent, parse_query_intent
+
 
 STOP_WORDS = {
     "a",
@@ -158,6 +160,39 @@ def parse_query(query: str) -> ParsedQuery:
         genres=_dedupe(genres),
         moods=_dedupe(moods),
         people=_dedupe(people),
+    )
+
+
+def _merge_intent(parsed: ParsedQuery, intent: QueryIntent | None) -> ParsedQuery:
+    if intent is None:
+        return parsed
+
+    intent_text = " ".join(
+        [
+            *(intent.people or []),
+            *(intent.genres or []),
+            *(intent.moods or []),
+            *(intent.keywords or []),
+            intent.query_rewrite or "",
+        ]
+    )
+    intent_terms = _tokens(intent_text)
+
+    return ParsedQuery(
+        raw=parsed.raw,
+        terms=_dedupe([*parsed.terms, *intent_terms]),
+        phrases=_dedupe(
+            [
+                *parsed.phrases,
+                *intent.people,
+                *intent.genres,
+                *intent.moods,
+                *intent.keywords,
+            ]
+        ),
+        genres=_dedupe([*parsed.genres, *[genre.lower() for genre in intent.genres]]),
+        moods=_dedupe([*parsed.moods, *[mood.lower() for mood in intent.moods]]),
+        people=_dedupe([*parsed.people, *intent.people]),
     )
 
 
@@ -342,7 +377,7 @@ def _row_score_and_reasons(row: sqlite3.Row, parsed: ParsedQuery) -> tuple[float
             reasons.append(_title_case(person))
 
     for genre in parsed.genres:
-        genre_terms = GENRE_SYNONYMS[genre]
+        genre_terms = GENRE_SYNONYMS.get(genre, [genre])
         if _contains_any(genre_text, genre_terms):
             score += 4.0
             reasons.append(_title_case(genre))
@@ -351,7 +386,7 @@ def _row_score_and_reasons(row: sqlite3.Row, parsed: ParsedQuery) -> tuple[float
             reasons.append(_title_case(genre))
 
     for mood in parsed.moods:
-        mood_terms = MOOD_SYNONYMS[mood]
+        mood_terms = MOOD_SYNONYMS.get(mood, [mood])
         if _contains_any(keyword_text + " " + overview_text + " " + genre_text, mood_terms):
             score += 3.0
             reasons.append(_title_case(mood))
@@ -381,7 +416,7 @@ def semantic_discover_movies(
     query: str,
     limit: int = 30,
 ) -> list[dict]:
-    parsed = parse_query(query)
+    parsed = _merge_intent(parse_query(query), parse_query_intent(query))
     if not parsed.terms and not parsed.people:
         return []
 

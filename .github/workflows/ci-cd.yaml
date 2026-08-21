@@ -190,6 +190,8 @@ jobs:
             ENVIRONMENT=prod
             ALLOWED_ORIGINS=https://directrec.chrissaia.com
             ALLOWED_ORIGIN_REGEX=https://[a-z0-9-]+-[0-9]+\.us-east1\.run\.app
+          secrets: |
+            OPENAI_API_KEY=OPENAI_API_KEY:latest
 
       - name: Smoke test health
         run: curl --fail "${{ steps.deploy.outputs.url }}/health"
