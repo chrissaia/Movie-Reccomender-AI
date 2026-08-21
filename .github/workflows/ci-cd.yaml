@@ -188,6 +188,7 @@ jobs:
             --timeout=300
           env_vars: |
             ENVIRONMENT=prod
+            ALLOWED_ORIGINS=https://directrec.chrissaia.com
             ALLOWED_ORIGIN_REGEX=https://[a-z0-9-]+-[0-9]+\.us-east1\.run\.app
 
       - name: Smoke test health
