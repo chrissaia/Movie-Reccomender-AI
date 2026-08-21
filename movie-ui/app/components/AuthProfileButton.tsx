@@ -7,7 +7,10 @@ export default function AuthProfileButton() {
   const router = useRouter();
   const { user, isSignedIn } = useUser();
   const fallbackInitial =
-    user?.firstName?.[0] ?? user?.username?.[0] ?? user?.primaryEmailAddress?.emailAddress?.[0] ?? "P";
+    user?.firstName?.[0] ??
+    user?.username?.[0] ??
+    user?.primaryEmailAddress?.emailAddress?.[0] ??
+    "P";
 
   if (!isSignedIn) {
     return (
@@ -18,7 +21,10 @@ export default function AuthProfileButton() {
   }
 
   return (
-    <button className="auth-profile-btn" onClick={() => router.push("/profile")}>
+    <button
+      className="auth-profile-btn"
+      onClick={() => router.push("/profile")}
+    >
       {user?.imageUrl ? (
         <img
           aria-hidden="true"

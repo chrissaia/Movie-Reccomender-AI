@@ -8,7 +8,12 @@ import AppHeader from "../components/AppHeader";
 import { API_BASE_URL } from "../lib/config";
 import { formatDate } from "../lib/format";
 import { logHandledError } from "../lib/log";
-import type { SavedList, SharedList, SharedMember, UnifiedList } from "../types";
+import type {
+  SavedList,
+  SharedList,
+  SharedMember,
+  UnifiedList,
+} from "../types";
 
 export default function ListsPage() {
   const router = useRouter();
@@ -19,13 +24,12 @@ export default function ListsPage() {
   const [loading, setLoading] = useState(true);
 
   const getSharedNames = (members: SharedMember[]) => {
-  return members
-    .filter((member) => member.user_id !== userId)
-    .map(
-      (member) =>
-        member.profile?.name || member.profile?.email || "Friend"
-    );
-};
+    return members
+      .filter((member) => member.user_id !== userId)
+      .map(
+        (member) => member.profile?.name || member.profile?.email || "Friend",
+      );
+  };
 
   useEffect(() => {
     const loadLists = async () => {
@@ -74,8 +78,6 @@ export default function ListsPage() {
         }));
 
         setLists([...sharedLists, ...personalLists]);
-
-
       } catch (err) {
         logHandledError("List load failed", err);
         setLists([]);
@@ -88,48 +90,48 @@ export default function ListsPage() {
   }, [isLoaded, isSignedIn, userId]);
 
   const deleteList = async (list: UnifiedList) => {
-      if (!isSignedIn || !userId) return;
+    if (!isSignedIn || !userId) return;
 
-      const endpoint =
-        list.kind === "shared"
-          ? `${API_BASE_URL}/shared-lists/${list.id}`
-          : `${API_BASE_URL}/user/lists/${list.id}`;
+    const endpoint =
+      list.kind === "shared"
+        ? `${API_BASE_URL}/shared-lists/${list.id}`
+        : `${API_BASE_URL}/user/lists/${list.id}`;
 
-      try {
-        const res = await fetch(endpoint, {
-          method: "DELETE",
-          headers: {
-            "X-User-Id": userId,
-          },
-        });
+    try {
+      const res = await fetch(endpoint, {
+        method: "DELETE",
+        headers: {
+          "X-User-Id": userId,
+        },
+      });
 
-        if (!res.ok) throw new Error("Failed to delete list");
+      if (!res.ok) throw new Error("Failed to delete list");
 
-        setLists((prev) => prev.filter((item) => item.id !== list.id));
-      } catch (err) {
-        logHandledError("List delete failed", err);
-      }
+      setLists((prev) => prev.filter((item) => item.id !== list.id));
+    } catch (err) {
+      logHandledError("List delete failed", err);
+    }
   };
 
   const createNewList = async () => {
-      if (!isSignedIn || !userId) return;
+    if (!isSignedIn || !userId) return;
 
-      const res = await fetch(`${API_BASE_URL}/user/lists`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": userId,
-        },
-        body: JSON.stringify({
-          name: "Untitled List",
-          movies: [],
-        }),
-      });
+    const res = await fetch(`${API_BASE_URL}/user/lists`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": userId,
+      },
+      body: JSON.stringify({
+        name: "Untitled List",
+        movies: [],
+      }),
+    });
 
-      if (!res.ok) return;
+    if (!res.ok) return;
 
-      const created = await res.json();
-      router.push(`/edit-list?kind=personal&listId=${created.id}`);
+    const created = await res.json();
+    router.push(`/edit-list?kind=personal&listId=${created.id}`);
   };
 
   const seeResults = (list: SavedList) => {
@@ -395,7 +397,8 @@ export default function ListsPage() {
 
             <div className="hero-sub-row">
               <div className="hero-sub">
-                Keep your favorite taste profiles organized and replay recommendations anytime.
+                Keep your favorite taste profiles organized and replay
+                recommendations anytime.
               </div>
 
               <button className="primary-btn" onClick={createNewList}>
@@ -405,12 +408,12 @@ export default function ListsPage() {
           </div>
         </section>
 
-
         {!isSignedIn && isLoaded && (
           <div className="empty-state">
             <h2 className="empty-title">Sign in to save movie lists.</h2>
             <p className="empty-copy">
-              Your lists now live in the backend, so they are tied to your account.
+              Your lists now live in the backend, so they are tied to your
+              account.
             </p>
             <SignInButton mode="modal">
               <button className="primary-btn">Sign In</button>
@@ -418,13 +421,16 @@ export default function ListsPage() {
           </div>
         )}
 
-        {isSignedIn && loading && <div className="empty-state">Loading lists...</div>}
+        {isSignedIn && loading && (
+          <div className="empty-state">Loading lists...</div>
+        )}
 
         {isSignedIn && !loading && lists.length === 0 && (
           <div className="empty-state">
             <h2 className="empty-title">No saved lists yet.</h2>
             <p className="empty-copy">
-              Search for movies, get recommendations, then save your selected favorites as a list.
+              Search for movies, get recommendations, then save your selected
+              favorites as a list.
             </p>
             <button className="primary-btn" onClick={() => router.push("/")}>
               Start Searching
@@ -436,24 +442,30 @@ export default function ListsPage() {
           <div className="list-grid">
             {lists.map((list) => {
               const preview = list.movies.slice(0, 5);
-              const remaining = Math.max(list.movies.length - preview.length, 0);
+              const remaining = Math.max(
+                list.movies.length - preview.length,
+                0,
+              );
 
               return (
-                  <article className="list-card" key={list.id}>
-                    {list.kind === "shared" && list.sharedWith && list.sharedWith.length > 0 ? (
-                      <>
-                        <div className="shared-badge">
-                          <span>👥</span>
-                          <span>+ {list.sharedWith.join(", ")}</span>
-                        </div>
-                        <h2 className="list-title-v1">{list.name}</h2>
-                      </>
-                    ) : (
-                      <h2 className="list-title-v2">{list.name}</h2>
-                    )}
+                <article className="list-card" key={list.id}>
+                  {list.kind === "shared" &&
+                  list.sharedWith &&
+                  list.sharedWith.length > 0 ? (
+                    <>
+                      <div className="shared-badge">
+                        <span>👥</span>
+                        <span>+ {list.sharedWith.join(", ")}</span>
+                      </div>
+                      <h2 className="list-title-v1">{list.name}</h2>
+                    </>
+                  ) : (
+                    <h2 className="list-title-v2">{list.name}</h2>
+                  )}
 
                   <div className="list-meta">
-                    {list.movies.length} movies · Saved {formatDate(list.createdAt)}
+                    {list.movies.length} movies · Saved{" "}
+                    {formatDate(list.createdAt)}
                   </div>
 
                   <div className="movie-preview">
@@ -469,17 +481,23 @@ export default function ListsPage() {
                   </div>
 
                   <div className="list-actions">
-                    <button className="primary-btn" onClick={() => seeResults(list)}>
+                    <button
+                      className="primary-btn"
+                      onClick={() => seeResults(list)}
+                    >
                       See Results
                     </button>
-                    <button className="secondary-btn" onClick={() => editList(list)}>
+                    <button
+                      className="secondary-btn"
+                      onClick={() => editList(list)}
+                    >
                       Edit
                     </button>
                     <button
                       className="danger-btn"
                       onClick={() => {
                         const confirmed = window.confirm(
-                          `Are you sure you want to delete "${list.name}"?`
+                          `Are you sure you want to delete "${list.name}"?`,
                         );
 
                         if (confirmed) {

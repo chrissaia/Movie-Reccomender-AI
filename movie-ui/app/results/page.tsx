@@ -24,7 +24,9 @@ function readStoredDislikedMovieIds() {
     const parsed: unknown = raw ? JSON.parse(raw) : [];
 
     return Array.isArray(parsed)
-      ? parsed.filter((movieId): movieId is number => typeof movieId === "number")
+      ? parsed.filter(
+          (movieId): movieId is number => typeof movieId === "number",
+        )
       : [];
   } catch (err) {
     logHandledError("Stored disliked movies parse failed", err);
@@ -43,9 +45,9 @@ async function enrichRows(rows: OrganizedRow[]): Promise<OrganizedRow[]> {
             ...item,
             ...details,
           };
-        })
+        }),
       ),
-    }))
+    })),
   );
 }
 
@@ -68,16 +70,18 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dislikedMovieIds, setDislikedMovieIds] = useState<Set<number>>(
-    () => new Set()
+    () => new Set(),
   );
 
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [listName, setListName] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
-  const [activeMovie, setActiveMovie] = useState<RecommendationItem | null>(null);
+  const [activeMovie, setActiveMovie] = useState<RecommendationItem | null>(
+    null,
+  );
   const selectedMovieIds = useMemo(
     () => selected.map((movie) => movie.movie_id),
-    [selected]
+    [selected],
   );
   const selectedMovieIdKey = selectedMovieIds.join(",");
 
@@ -185,11 +189,11 @@ export default function ResultsPage() {
         .map((row) => ({
           ...row,
           items: row.items.filter(
-            (movie) => !dislikedMovieIds.has(movie.movie_id)
+            (movie) => !dislikedMovieIds.has(movie.movie_id),
           ),
         }))
         .filter((row) => row.items.length > 0),
-    [rows, dislikedMovieIds]
+    [rows, dislikedMovieIds],
   );
 
   const dislikeRecommendation = async (movie: RecommendationItem) => {
@@ -200,7 +204,7 @@ export default function ResultsPage() {
       if (!isSignedIn || !userId) {
         localStorage.setItem(
           DISLIKED_MOVIES_STORAGE_KEY,
-          JSON.stringify(Array.from(next))
+          JSON.stringify(Array.from(next)),
         );
       }
 
@@ -699,10 +703,14 @@ export default function ResultsPage() {
                     <div className="card-hover">
                       <div className="hover-title">{movie.title}</div>
                       <div className="explain-list">
-                        {(movie.explanations ?? []).slice(0, 3).map((reason) => (
-                          <div key={reason}>• {reason}</div>
-                        ))}
-                        {movie.overview && <div>{movie.overview.slice(0, 130)}...</div>}
+                        {(movie.explanations ?? [])
+                          .slice(0, 3)
+                          .map((reason) => (
+                            <div key={reason}>• {reason}</div>
+                          ))}
+                        {movie.overview && (
+                          <div>{movie.overview.slice(0, 130)}...</div>
+                        )}
                       </div>
                     </div>
                   </article>
@@ -712,7 +720,10 @@ export default function ResultsPage() {
           ))}
       </div>
 
-      <MovieDetailModal movie={activeMovie} onClose={() => setActiveMovie(null)} />
+      <MovieDetailModal
+        movie={activeMovie}
+        onClose={() => setActiveMovie(null)}
+      />
 
       {showSaveModal && (
         <div className="modal-backdrop">
@@ -726,7 +737,10 @@ export default function ResultsPage() {
             />
 
             <div className="modal-actions">
-              <button className="pill-btn" onClick={() => setShowSaveModal(false)}>
+              <button
+                className="pill-btn"
+                onClick={() => setShowSaveModal(false)}
+              >
                 Cancel
               </button>
               <button className="primary-btn" onClick={saveList}>

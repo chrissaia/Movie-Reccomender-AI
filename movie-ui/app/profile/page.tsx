@@ -34,7 +34,12 @@ type ProfilePayload = {
   lists: { id: string; name: string; createdAt: string }[];
   shared_lists: { id: string; name: string; createdAt: string }[];
   friends: { user_id: string; name: string | null; email: string | null }[];
-  watchlist: { movie_id: number; title: string; status: string; createdAt: string }[];
+  watchlist: {
+    movie_id: number;
+    title: string;
+    status: string;
+    createdAt: string;
+  }[];
   recent_activity: { type: string; label: string; createdAt: string }[];
 };
 
@@ -55,7 +60,9 @@ const emptyPrefs = {
 };
 
 function pretty(value: string) {
-  return value.replaceAll("-", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  return value
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function valuesFor(values: string[] | undefined) {
@@ -65,7 +72,6 @@ function valuesFor(values: string[] | undefined) {
 function emptyCopy(label: string) {
   return <div className="muted">No {label} saved yet.</div>;
 }
-
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -81,14 +87,16 @@ export default function ProfilePage() {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [rankQuery, setRankQuery] = useState("");
   const [rankResults, setRankResults] = useState<MovieSearchResult[]>([]);
-  const [rankingMovie, setRankingMovie] = useState<MovieSearchResult | null>(null);
+  const [rankingMovie, setRankingMovie] = useState<MovieSearchResult | null>(
+    null,
+  );
   const [loadingRankSearch, setLoadingRankSearch] = useState(false);
   const [ratingMessage, setRatingMessage] = useState("");
   const [editingBio, setEditingBio] = useState(false);
   const [watchlistOpen, setWatchlistOpen] = useState(true);
   const [editingPrefs, setEditingPrefs] = useState(false);
   const [prefsDraft, setPrefsDraft] = useState<Record<string, string>>(
-    Object.fromEntries(Object.keys(emptyPrefs).map((key) => [key, ""]))
+    Object.fromEntries(Object.keys(emptyPrefs).map((key) => [key, ""])),
   );
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? null;
@@ -122,8 +130,11 @@ export default function ProfilePage() {
       setPrefs(mergedPrefs);
       setPrefsDraft(
         Object.fromEntries(
-          Object.entries(mergedPrefs).map(([key, values]) => [key, values.join(", ")])
-        )
+          Object.entries(mergedPrefs).map(([key, values]) => [
+            key,
+            values.join(", "),
+          ]),
+        ),
       );
       setMessage("");
     } catch (err) {
@@ -173,7 +184,7 @@ export default function ProfilePage() {
 
       try {
         const res = await fetch(
-          `${API_BASE_URL}/movies/search?q=${encodeURIComponent(rankQuery)}&limit=6`
+          `${API_BASE_URL}/movies/search?q=${encodeURIComponent(rankQuery)}&limit=6`,
         );
 
         if (!res.ok) {
@@ -186,7 +197,7 @@ export default function ProfilePage() {
           data.map(async (movie) => ({
             ...movie,
             poster: await getTmdbPoster(movie.title),
-          }))
+          })),
         );
         setRankResults(withPosters);
       } catch (err) {
@@ -234,13 +245,18 @@ export default function ProfilePage() {
 
   const profileImage = data?.profile.avatar_url || user?.imageUrl || "";
   const profileInitial =
-    (name || user?.firstName || user?.username || userEmail || "M")[0]?.toUpperCase() ??
-    "M";
+    (name ||
+      user?.firstName ||
+      user?.username ||
+      userEmail ||
+      "M")[0]?.toUpperCase() ?? "M";
 
   const createdListActivity =
     data?.recent_activity.filter((item) => item.type === "created_list") ?? [];
   const editedSharedActivity =
-    data?.recent_activity.filter((item) => item.type === "edited_shared_list") ?? [];
+    data?.recent_activity.filter(
+      (item) => item.type === "edited_shared_list",
+    ) ?? [];
   const ratedMovieActivity =
     data?.recent_activity.filter((item) => item.type === "rated_movie") ?? [];
   const watchedMovieActivity =
@@ -263,7 +279,7 @@ export default function ProfilePage() {
           .split(",")
           .map((item) => item.trim())
           .filter(Boolean),
-      ])
+      ]),
     );
 
     try {
@@ -305,8 +321,6 @@ export default function ProfilePage() {
       logHandledError("Watchlist remove failed", err);
     }
   };
-
-
 
   return (
     <main className="profile-page">
@@ -908,7 +922,10 @@ export default function ProfilePage() {
                   >
                     {editingBio ? "Close Editor" : "Edit Bio"}
                   </button>
-                  <button className="secondary-btn" onClick={() => openUserProfile()}>
+                  <button
+                    className="secondary-btn"
+                    onClick={() => openUserProfile()}
+                  >
                     Account
                   </button>
                   <button
@@ -938,7 +955,6 @@ export default function ProfilePage() {
               </div>
             </section>
 
-
             {message && <div className="message">{message}</div>}
 
             <div className="profile-card-grid">
@@ -948,9 +964,13 @@ export default function ProfilePage() {
                 <div className="card-section">
                   <div className="section-title">Favorite Genres</div>
                   <div className="chip-row">
-                    {valuesFor(data.taste_summary.favorite_genres).map((item) => (
-                      <span className="chip" key={item}>{pretty(item)}</span>
-                    ))}
+                    {valuesFor(data.taste_summary.favorite_genres).map(
+                      (item) => (
+                        <span className="chip" key={item}>
+                          {pretty(item)}
+                        </span>
+                      ),
+                    )}
                     {data.taste_summary.favorite_genres.length === 0 &&
                       emptyCopy("favorite genres")}
                   </div>
@@ -959,9 +979,13 @@ export default function ProfilePage() {
                 <div className="card-section">
                   <div className="section-title">Favorite Actors</div>
                   <div className="chip-row">
-                    {valuesFor(data.taste_summary.favorite_actors).map((item) => (
-                      <span className="chip" key={item}>{pretty(item)}</span>
-                    ))}
+                    {valuesFor(data.taste_summary.favorite_actors).map(
+                      (item) => (
+                        <span className="chip" key={item}>
+                          {pretty(item)}
+                        </span>
+                      ),
+                    )}
                     {data.taste_summary.favorite_actors.length === 0 &&
                       emptyCopy("favorite actors")}
                   </div>
@@ -970,9 +994,13 @@ export default function ProfilePage() {
                 <div className="card-section">
                   <div className="section-title">Favorite Directors</div>
                   <div className="chip-row">
-                    {valuesFor(data.taste_summary.favorite_directors).map((item) => (
-                      <span className="chip" key={item}>{pretty(item)}</span>
-                    ))}
+                    {valuesFor(data.taste_summary.favorite_directors).map(
+                      (item) => (
+                        <span className="chip" key={item}>
+                          {pretty(item)}
+                        </span>
+                      ),
+                    )}
                     {data.taste_summary.favorite_directors.length === 0 &&
                       emptyCopy("favorite directors")}
                   </div>
@@ -982,7 +1010,9 @@ export default function ProfilePage() {
                   <div className="section-title">Preferred Moods</div>
                   <div className="chip-row">
                     {valuesFor(prefs.preferred_moods).map((item) => (
-                      <span className="chip" key={item}>{pretty(item)}</span>
+                      <span className="chip" key={item}>
+                        {pretty(item)}
+                      </span>
                     ))}
                     {valuesFor(prefs.preferred_moods).length === 0 &&
                       emptyCopy("preferred moods")}
@@ -993,7 +1023,9 @@ export default function ProfilePage() {
                   <div className="section-title">Pacing Style</div>
                   <div className="chip-row">
                     {valuesFor(prefs.preferred_pacing).map((item) => (
-                      <span className="chip" key={item}>{pretty(item)}</span>
+                      <span className="chip" key={item}>
+                        {pretty(item)}
+                      </span>
                     ))}
                     {valuesFor(prefs.preferred_pacing).length === 0 &&
                       emptyCopy("pacing styles")}
@@ -1003,7 +1035,10 @@ export default function ProfilePage() {
               <section className="panel">
                 <div className="row-head">
                   <h2 className="panel-title">My Preferences</h2>
-                  <button className="pill-btn" onClick={() => setEditingPrefs((editing) => !editing)}>
+                  <button
+                    className="pill-btn"
+                    onClick={() => setEditingPrefs((editing) => !editing)}
+                  >
                     {editingPrefs ? "Close" : "Edit"}
                   </button>
                 </div>
@@ -1017,13 +1052,19 @@ export default function ProfilePage() {
                           className="input"
                           value={prefsDraft[key] ?? ""}
                           onChange={(event) =>
-                            setPrefsDraft((draft) => ({ ...draft, [key]: event.target.value }))
+                            setPrefsDraft((draft) => ({
+                              ...draft,
+                              [key]: event.target.value,
+                            }))
                           }
                           placeholder="Comma-separated answers"
                         />
                       </div>
                     ))}
-                    <button className="primary-btn" onClick={saveOnboardingPreferences}>
+                    <button
+                      className="primary-btn"
+                      onClick={saveOnboardingPreferences}
+                    >
                       Save Preferences
                     </button>
                   </div>
@@ -1032,17 +1073,17 @@ export default function ProfilePage() {
                 <div className="card-section">
                   <div className="section-title">Onboarding Answers</div>
                   <div className="chip-row">
-                    {Object.entries(prefs).some(([, values]) => values.length > 0) ? (
-                      Object.entries(prefs).flatMap(([key, values]) =>
-                        values.map((value) => (
-                          <span className="chip" key={`${key}-${value}`}>
-                            {pretty(value)}
-                          </span>
-                        ))
-                      )
-                    ) : (
-                      emptyCopy("onboarding answers")
-                    )}
+                    {Object.entries(prefs).some(
+                      ([, values]) => values.length > 0,
+                    )
+                      ? Object.entries(prefs).flatMap(([key, values]) =>
+                          values.map((value) => (
+                            <span className="chip" key={`${key}-${value}`}>
+                              {pretty(value)}
+                            </span>
+                          )),
+                        )
+                      : emptyCopy("onboarding answers")}
                   </div>
                 </div>
 
@@ -1050,7 +1091,9 @@ export default function ProfilePage() {
                   <div className="section-title">Favorite Genres</div>
                   <div className="chip-row">
                     {valuesFor(prefs.favorite_genres).map((item) => (
-                      <span className="chip" key={item}>{pretty(item)}</span>
+                      <span className="chip" key={item}>
+                        {pretty(item)}
+                      </span>
                     ))}
                     {valuesFor(prefs.favorite_genres).length === 0 &&
                       emptyCopy("favorite genres")}
@@ -1061,7 +1104,9 @@ export default function ProfilePage() {
                   <div className="section-title">Disliked Genres</div>
                   <div className="chip-row">
                     {valuesFor(prefs.disliked_genres).map((item) => (
-                      <span className="chip" key={item}>{pretty(item)}</span>
+                      <span className="chip" key={item}>
+                        {pretty(item)}
+                      </span>
                     ))}
                     {valuesFor(prefs.disliked_genres).length === 0 &&
                       emptyCopy("disliked genres")}
@@ -1072,7 +1117,9 @@ export default function ProfilePage() {
                   <div className="section-title">Movies I Love</div>
                   <div className="chip-row">
                     {valuesFor(prefs.favorite_movies).map((item) => (
-                      <span className="chip" key={item}>{pretty(item)}</span>
+                      <span className="chip" key={item}>
+                        {pretty(item)}
+                      </span>
                     ))}
                     {valuesFor(prefs.favorite_movies).length === 0 &&
                       emptyCopy("favorite movies")}
@@ -1083,14 +1130,15 @@ export default function ProfilePage() {
                   <div className="section-title">Movies I Hate</div>
                   <div className="chip-row">
                     {valuesFor(prefs.disliked_movies).map((item) => (
-                      <span className="chip" key={item}>{pretty(item)}</span>
+                      <span className="chip" key={item}>
+                        {pretty(item)}
+                      </span>
                     ))}
                     {valuesFor(prefs.disliked_movies).length === 0 &&
                       emptyCopy("disliked movies")}
                   </div>
                 </div>
               </section>
-
 
               <section className="panel">
                 <h2 className="panel-title">My Friends</h2>
@@ -1111,7 +1159,9 @@ export default function ProfilePage() {
                         </div>
                         <div>
                           <div className="friend-name">{friendName}</div>
-                          {friend.email && <div className="friend-sub">{friend.email}</div>}
+                          {friend.email && (
+                            <div className="friend-sub">{friend.email}</div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1119,25 +1169,35 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="card-actions">
-                  <button className="primary-btn" onClick={() => router.push("/friends")}>
+                  <button
+                    className="primary-btn"
+                    onClick={() => router.push("/friends")}
+                  >
                     View Friends
                   </button>
                 </div>
               </section>
 
               <section className="panel">
-                <button className="watchlist-toggle" onClick={() => setWatchlistOpen((open) => !open)}>
+                <button
+                  className="watchlist-toggle"
+                  onClick={() => setWatchlistOpen((open) => !open)}
+                >
                   <h2 className="panel-title">My Watchlist</h2>
                   <span>{watchlistOpen ? "Hide" : "Show"}</span>
                 </button>
 
                 {watchlistOpen && (
                   <div className="watchlist-scroll">
-                    {(data.watchlist ?? []).length === 0 && emptyCopy("watchlist movies")}
+                    {(data.watchlist ?? []).length === 0 &&
+                      emptyCopy("watchlist movies")}
                     {(data.watchlist ?? []).map((movie) => (
                       <div className="list-row" key={movie.movie_id}>
                         <span>{movie.title}</span>
-                        <button className="pill-btn" onClick={() => removeFromWatchlist(movie.movie_id)}>
+                        <button
+                          className="pill-btn"
+                          onClick={() => removeFromWatchlist(movie.movie_id)}
+                        >
                           Remove
                         </button>
                       </div>
@@ -1149,7 +1209,8 @@ export default function ProfilePage() {
             <section className="panel">
               <h2 className="panel-title">Rank Some Movies</h2>
               <p className="muted">
-                Search for a movie, open the poster card, rate it from half a star to five stars, and add a quick note.
+                Search for a movie, open the poster card, rate it from half a
+                star to five stars, and add a quick note.
               </p>
 
               <div className="rank-search">
@@ -1186,7 +1247,10 @@ export default function ProfilePage() {
               {ratingMessage && <div className="message">{ratingMessage}</div>}
             </section>
 
-            <MovieDetailModal movie={rankingMovie} onClose={() => setRankingMovie(null)} />
+            <MovieDetailModal
+              movie={rankingMovie}
+              onClose={() => setRankingMovie(null)}
+            />
           </>
         )}
       </div>

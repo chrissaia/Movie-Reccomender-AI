@@ -34,7 +34,7 @@ export default function Home() {
 
       try {
         const res = await fetch(
-          `${API_BASE_URL}/movies/search?q=${encodeURIComponent(query)}`
+          `${API_BASE_URL}/movies/search?q=${encodeURIComponent(query)}`,
         );
         const data = await res.json();
 
@@ -45,7 +45,7 @@ export default function Home() {
               ...movie,
               poster,
             };
-          })
+          }),
         );
 
         setResults(withPosters);
@@ -61,7 +61,7 @@ export default function Home() {
 
   const filteredResults = useMemo(() => {
     return results.filter(
-      (m) => !selected.some((s) => s.movie_id === m.movie_id)
+      (m) => !selected.some((s) => s.movie_id === m.movie_id),
     );
   }, [results, selected]);
 
@@ -105,18 +105,21 @@ export default function Home() {
           "linear-gradient(135deg, #020617 0%, #0f172a 35%, #1e3a8a 100%)",
       }}
     >
-    <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
-      <button className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold" onClick={() => router.push("/friends")}>
-        Friends
-      </button>
-      <button
-        onClick={() => router.push("/lists")}
-        className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold"
-      >
-        My Lists
-      </button>
-      <AuthProfileButton />
-    </div>
+      <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
+        <button
+          className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold"
+          onClick={() => router.push("/friends")}
+        >
+          Friends
+        </button>
+        <button
+          onClick={() => router.push("/lists")}
+          className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold"
+        >
+          My Lists
+        </button>
+        <AuthProfileButton />
+      </div>
       <div style={{ width: "100%", maxWidth: 900, textAlign: "center" }}>
         <h1
           style={{
@@ -148,7 +151,8 @@ export default function Home() {
               if (results.length > 0) setShowDropdown(true);
             }}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && isSentenceSearch) discoverFromSentence();
+              if (event.key === "Enter" && isSentenceSearch)
+                discoverFromSentence();
             }}
             placeholder="Search movies or describe a vibe..."
             style={{
@@ -214,7 +218,9 @@ export default function Home() {
                       flexShrink: 0,
                     }}
                   />
-                  <span style={{ fontWeight: 600, fontSize: 17 }}>{movie.title}</span>
+                  <span style={{ fontWeight: 600, fontSize: 17 }}>
+                    {movie.title}
+                  </span>
                 </button>
               ))}
             </div>

@@ -50,7 +50,9 @@ type FriendProfilePayload = {
 };
 
 function pretty(value: string) {
-  return value.replaceAll("-", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+  return value
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function emptyCopy(label: string) {
@@ -80,7 +82,9 @@ export default function FriendProfilePage() {
   const [message, setMessage] = useState("");
   const [creatingCuratedProfile, setCreatingCuratedProfile] = useState(false);
   const [curatedMessage, setCuratedMessage] = useState("");
-  const [friendRecommendations, setFriendRecommendations] = useState<{ movie_id: number; title: string }[]>([]);
+  const [friendRecommendations, setFriendRecommendations] = useState<
+    { movie_id: number; title: string }[]
+  >([]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -124,16 +128,21 @@ export default function FriendProfilePage() {
     if (!viewerUserId) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/shared-lists/${listId}/copy-to-my-lists`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": viewerUserId,
+      const res = await fetch(
+        `${API_BASE_URL}/shared-lists/${listId}/copy-to-my-lists`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-User-Id": viewerUserId,
+          },
+          body: JSON.stringify({ name: `Copy of ${name}` }),
         },
-        body: JSON.stringify({ name: `Copy of ${name}` }),
-      });
+      );
 
-      setCuratedMessage(res.ok ? "List copied to My Lists." : "Could not copy that list.");
+      setCuratedMessage(
+        res.ok ? "List copied to My Lists." : "Could not copy that list.",
+      );
     } catch (err) {
       logHandledError("Shared list copy failed", err);
       setCuratedMessage("Could not reach the list service.");
@@ -144,10 +153,13 @@ export default function FriendProfilePage() {
     if (!viewerUserId || !params.userId) return;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/profiles/${params.userId}/recommend`, {
-        method: "POST",
-        headers: { "X-User-Id": viewerUserId },
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/profiles/${params.userId}/recommend`,
+        {
+          method: "POST",
+          headers: { "X-User-Id": viewerUserId },
+        },
+      );
 
       if (!res.ok) {
         setCuratedMessage("Could not load friend recommendations yet.");
@@ -181,7 +193,7 @@ export default function FriendProfilePage() {
           body: JSON.stringify({
             name: `${displayName} + Me Taste Profile`,
           }),
-        }
+        },
       );
 
       if (!res.ok) {
@@ -445,7 +457,9 @@ export default function FriendProfilePage() {
           </div>
         )}
 
-        {isSignedIn && loading && <div className="panel">Loading profile...</div>}
+        {isSignedIn && loading && (
+          <div className="panel">Loading profile...</div>
+        )}
 
         {isSignedIn && !loading && message && !data && (
           <div className="panel">
@@ -473,8 +487,7 @@ export default function FriendProfilePage() {
                 <div className="profile-copy">
                   <h1 className="hero-title">{displayName}</h1>
                   <div className="hero-sub">
-                    {data.profile.bio ||
-                      "This friend has not added a bio yet."}
+                    {data.profile.bio || "This friend has not added a bio yet."}
                   </div>
                 </div>
               </div>
@@ -489,7 +502,9 @@ export default function FriendProfilePage() {
 
             <section className="stat-row">
               <div className="stat-card">
-                <div className="stat-number">{data.stats.shared_lists_count}</div>
+                <div className="stat-number">
+                  {data.stats.shared_lists_count}
+                </div>
                 <div className="stat-label">Shared Lists</div>
               </div>
               <div className="stat-card">
@@ -497,7 +512,9 @@ export default function FriendProfilePage() {
                 <div className="stat-label">Friends</div>
               </div>
               <div className="stat-card">
-                <div className="stat-number">{data.stats.unique_movies_count}</div>
+                <div className="stat-number">
+                  {data.stats.unique_movies_count}
+                </div>
                 <div className="stat-label">Movies Saved</div>
               </div>
             </section>
@@ -507,13 +524,19 @@ export default function FriendProfilePage() {
                 <div>
                   <h2 className="panel-title">Taste Match</h2>
                   <div className="muted">
-                    Compare your saved movie taste with {displayName} and turn the overlap into a shared list.
+                    Compare your saved movie taste with {displayName} and turn
+                    the overlap into a shared list.
                   </div>
                 </div>
 
-                <div className="match-score" aria-label={`${similarityPercent}% taste match`}>
+                <div
+                  className="match-score"
+                  aria-label={`${similarityPercent}% taste match`}
+                >
                   <div>
-                    <div className="match-score-number">{similarityPercent}%</div>
+                    <div className="match-score-number">
+                      {similarityPercent}%
+                    </div>
                     <div className="match-score-label">Match</div>
                   </div>
                 </div>
@@ -556,45 +579,55 @@ export default function FriendProfilePage() {
 
               {friendRecommendations.length > 0 && (
                 <>
-                  <div className="section-title">Recommendations From This Profile</div>
+                  <div className="section-title">
+                    Recommendations From This Profile
+                  </div>
                   <div className="chip-row">
                     {friendRecommendations.slice(0, 12).map((movie) => (
-                      <span className="chip" key={movie.movie_id}>{movie.title}</span>
+                      <span className="chip" key={movie.movie_id}>
+                        {movie.title}
+                      </span>
                     ))}
                   </div>
                 </>
               )}
             </section>
-              <section className="panel">
-                <h2 className="panel-title">Taste Profile</h2>
+            <section className="panel">
+              <h2 className="panel-title">Taste Profile</h2>
 
-                <div className="section-title">Favorite Genres</div>
-                <div className="chip-row">
-                  {data.taste_summary.favorite_genres.map((item) => (
-                    <span className="chip" key={item}>{pretty(item)}</span>
-                  ))}
-                  {data.taste_summary.favorite_genres.length === 0 &&
-                    emptyCopy("favorite genres")}
-                </div>
+              <div className="section-title">Favorite Genres</div>
+              <div className="chip-row">
+                {data.taste_summary.favorite_genres.map((item) => (
+                  <span className="chip" key={item}>
+                    {pretty(item)}
+                  </span>
+                ))}
+                {data.taste_summary.favorite_genres.length === 0 &&
+                  emptyCopy("favorite genres")}
+              </div>
 
-                <div className="section-title">Favorite Actors</div>
-                <div className="chip-row">
-                  {data.taste_summary.favorite_actors.map((item) => (
-                    <span className="chip" key={item}>{pretty(item)}</span>
-                  ))}
-                  {data.taste_summary.favorite_actors.length === 0 &&
-                    emptyCopy("favorite actors")}
-                </div>
+              <div className="section-title">Favorite Actors</div>
+              <div className="chip-row">
+                {data.taste_summary.favorite_actors.map((item) => (
+                  <span className="chip" key={item}>
+                    {pretty(item)}
+                  </span>
+                ))}
+                {data.taste_summary.favorite_actors.length === 0 &&
+                  emptyCopy("favorite actors")}
+              </div>
 
-                <div className="section-title">Favorite Directors</div>
-                <div className="chip-row">
-                  {data.taste_summary.favorite_directors.map((item) => (
-                    <span className="chip" key={item}>{pretty(item)}</span>
-                  ))}
-                  {data.taste_summary.favorite_directors.length === 0 &&
-                    emptyCopy("favorite directors")}
-                </div>
-              </section>
+              <div className="section-title">Favorite Directors</div>
+              <div className="chip-row">
+                {data.taste_summary.favorite_directors.map((item) => (
+                  <span className="chip" key={item}>
+                    {pretty(item)}
+                  </span>
+                ))}
+                {data.taste_summary.favorite_directors.length === 0 &&
+                  emptyCopy("favorite directors")}
+              </div>
+            </section>
           </>
         )}
       </div>

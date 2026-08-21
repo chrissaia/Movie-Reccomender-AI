@@ -127,7 +127,6 @@ jobs:
             NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000' }}
             NEXT_PUBLIC_TMDB_API_KEY=${{ secrets.NEXT_PUBLIC_TMDB_API_KEY }}
             NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-  
 
   deploy-backend:
     name: Deploy Backend to Cloud Run
@@ -195,7 +194,6 @@ jobs:
 
       - name: Smoke test health
         run: curl --fail "${{ steps.deploy.outputs.url }}/health"
-
 
   deploy-ui:
     name: Deploy Frontend to Cloud Run

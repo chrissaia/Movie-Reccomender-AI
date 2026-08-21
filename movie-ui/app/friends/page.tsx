@@ -78,7 +78,7 @@ export default function FriendsPage() {
         `${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`,
         {
           headers: authHeaders,
-        }
+        },
       );
 
       if (!res.ok) {
@@ -374,7 +374,9 @@ export default function FriendsPage() {
                     <div className="user-actions">
                       <button
                         className="pill-btn"
-                        onClick={() => router.push(`/profile/${profile.user_id}`)}
+                        onClick={() =>
+                          router.push(`/profile/${profile.user_id}`)
+                        }
                       >
                         View
                       </button>

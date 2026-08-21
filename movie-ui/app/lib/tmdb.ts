@@ -12,21 +12,23 @@ type TmdbSearchResult = {
   release_date?: string;
 };
 
-async function searchTmdb(title: string): Promise<TmdbSearchResult | undefined> {
+async function searchTmdb(
+  title: string,
+): Promise<TmdbSearchResult | undefined> {
   if (!TMDB_API_KEY) return undefined;
 
   try {
     const res = await fetch(
       `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(
-        title
-      )}&api_key=${TMDB_API_KEY}`
+        title,
+      )}&api_key=${TMDB_API_KEY}`,
     );
 
     const data = await res.json();
     return (
       data?.results?.find(
         (movie: TmdbSearchResult) =>
-          String(movie.title ?? "").toLowerCase() === title.toLowerCase()
+          String(movie.title ?? "").toLowerCase() === title.toLowerCase(),
       ) ?? data?.results?.[0]
     );
   } catch {
@@ -41,7 +43,7 @@ export async function getTmdbPoster(title: string): Promise<string> {
 }
 
 export async function getTmdbOptionalPoster(
-  title: string
+  title: string,
 ): Promise<string | undefined> {
   const match = await searchTmdb(title);
   if (!match?.poster_path) return undefined;

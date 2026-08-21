@@ -101,16 +101,24 @@ export default function FriendListsPage() {
     setCopyMessage(list.id, "Copying...");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/profiles/${params.userId}/lists/${list.id}/copy`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": viewerUserId,
+      const res = await fetch(
+        `${API_BASE_URL}/profiles/${params.userId}/lists/${list.id}/copy`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-User-Id": viewerUserId,
+          },
+          body: JSON.stringify({ name: `Copy of ${list.name}` }),
         },
-        body: JSON.stringify({ name: `Copy of ${list.name}` }),
-      });
+      );
 
-      setCopyMessage(list.id, res.ok ? `Copied "${list.name}" to your lists.` : "Could not copy that list.");
+      setCopyMessage(
+        list.id,
+        res.ok
+          ? `Copied "${list.name}" to your lists.`
+          : "Could not copy that list.",
+      );
 
       if (res.ok) {
         const created = await res.json();
@@ -126,7 +134,7 @@ export default function FriendListsPage() {
     if (!viewerUserId || !pickerMovie) return;
 
     const alreadySaved = targetList.movies.some(
-      (movie) => movie.movie_id === pickerMovie.movie_id
+      (movie) => movie.movie_id === pickerMovie.movie_id,
     );
 
     if (alreadySaved) {
@@ -157,7 +165,7 @@ export default function FriendListsPage() {
 
       const updated = await res.json();
       setMyLists((current) =>
-        current.map((list) => (list.id === updated.id ? updated : list))
+        current.map((list) => (list.id === updated.id ? updated : list)),
       );
       setAddMessage(pickerMovie.movie_id, `Added to "${targetList.name}".`);
       setPickerMovie(null);
@@ -440,7 +448,10 @@ export default function FriendListsPage() {
 
         <section className="hero">
           <h1 className="hero-title">{displayName}&apos;s movie lists.</h1>
-          <div className="hero-sub">View their saved lists, copy one into your account, or use a list for recommendations.</div>
+          <div className="hero-sub">
+            View their saved lists, copy one into your account, or use a list
+            for recommendations.
+          </div>
         </section>
 
         {!isSignedIn && isLoaded && (
@@ -452,8 +463,14 @@ export default function FriendListsPage() {
           </div>
         )}
 
-        {isSignedIn && loading && <div className="empty-state">Loading lists...</div>}
-        {message && <div className="empty-state" style={{ marginBottom: 18 }}>{message}</div>}
+        {isSignedIn && loading && (
+          <div className="empty-state">Loading lists...</div>
+        )}
+        {message && (
+          <div className="empty-state" style={{ marginBottom: 18 }}>
+            {message}
+          </div>
+        )}
 
         {isSignedIn && !loading && payload && payload.lists.length === 0 && (
           <div className="empty-state">No lists available yet.</div>
@@ -463,11 +480,17 @@ export default function FriendListsPage() {
           <div className="list-grid">
             {payload.lists.map((list) => {
               const preview = list.movies.slice(0, 5);
-              const remaining = Math.max(list.movies.length - preview.length, 0);
+              const remaining = Math.max(
+                list.movies.length - preview.length,
+                0,
+              );
               const isShared = list.kind === "shared";
 
               return (
-                <article className={`list-card ${isShared ? "is-shared" : ""}`} key={list.id}>
+                <article
+                  className={`list-card ${isShared ? "is-shared" : ""}`}
+                  key={list.id}
+                >
                   {isShared && (
                     <div className="shared-badge" aria-label="Shared list">
                       <span>👥</span>
@@ -477,32 +500,49 @@ export default function FriendListsPage() {
 
                   <h2 className="list-title">{list.name}</h2>
                   <div className="list-meta">
-                    {list.movies.length} movies · Saved {formatDate(list.createdAt)}
+                    {list.movies.length} movies · Saved{" "}
+                    {formatDate(list.createdAt)}
                   </div>
 
                   <div className="movie-preview">
                     {preview.map((movie) => (
-                      <div className="movie-card" key={`${list.id}-${movie.movie_id}`}>
+                      <div
+                        className="movie-card"
+                        key={`${list.id}-${movie.movie_id}`}
+                      >
                         <span className="movie-title">{movie.title}</span>
-                        <button className="mini-btn" onClick={() => setPickerMovie(movie)}>
+                        <button
+                          className="mini-btn"
+                          onClick={() => setPickerMovie(movie)}
+                        >
                           Add to List
                         </button>
                       </div>
                     ))}
-                    {remaining > 0 && <span className="more-chip">+{remaining} more</span>}
+                    {remaining > 0 && (
+                      <span className="more-chip">+{remaining} more</span>
+                    )}
                   </div>
 
                   <div className="copy-area">
                     <div className="list-actions">
-                      <button className="secondary-btn" onClick={() => copyList(list)}>
+                      <button
+                        className="secondary-btn"
+                        onClick={() => copyList(list)}
+                      >
                         Copy
                       </button>
-                      <button className="primary-btn" onClick={() => seeResults(list)}>
+                      <button
+                        className="primary-btn"
+                        onClick={() => seeResults(list)}
+                      >
                         See Results
                       </button>
                     </div>
                     {copyMessages[list.id] && (
-                      <div className="inline-message">{copyMessages[list.id]}</div>
+                      <div className="inline-message">
+                        {copyMessages[list.id]}
+                      </div>
                     )}
                   </div>
                 </article>
@@ -520,13 +560,19 @@ export default function FriendListsPage() {
                 <h2 className="picker-title">Add to list</h2>
                 <div className="picker-sub">{pickerMovie.title}</div>
               </div>
-              <button className="picker-close" onClick={() => setPickerMovie(null)} aria-label="Close">
+              <button
+                className="picker-close"
+                onClick={() => setPickerMovie(null)}
+                aria-label="Close"
+              >
                 ×
               </button>
             </div>
 
             {myLists.length === 0 ? (
-              <div className="empty-state">You do not have any personal lists yet.</div>
+              <div className="empty-state">
+                You do not have any personal lists yet.
+              </div>
             ) : (
               <div className="picker-list">
                 {myLists.map((list) => (
@@ -538,7 +584,9 @@ export default function FriendListsPage() {
             )}
 
             {addMessages[String(pickerMovie.movie_id)] && (
-              <div className="inline-message">{addMessages[String(pickerMovie.movie_id)]}</div>
+              <div className="inline-message">
+                {addMessages[String(pickerMovie.movie_id)]}
+              </div>
             )}
           </div>
         </div>

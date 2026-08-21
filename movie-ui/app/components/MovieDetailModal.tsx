@@ -124,7 +124,9 @@ export default function MovieDetailModal({ movie, onClose }: Props) {
         }),
       });
 
-      setMessage(res.ok ? "Added to watchlist." : "Could not add to watchlist.");
+      setMessage(
+        res.ok ? "Added to watchlist." : "Could not add to watchlist.",
+      );
     } catch (err) {
       logHandledError("Watchlist save failed", err);
       setMessage("Could not reach the watchlist service.");
@@ -153,22 +155,50 @@ export default function MovieDetailModal({ movie, onClose }: Props) {
         @media (max-width: 720px) { .movie-modal-grid { grid-template-columns: 1fr; } .movie-modal-poster { max-width: 240px; } .movie-modal-facts { grid-template-columns: 1fr; } }
       `}</style>
       <div className="movie-modal" onClick={(event) => event.stopPropagation()}>
-        <button className="movie-close" onClick={onClose} aria-label="Close">×</button>
+        <button className="movie-close" onClick={onClose} aria-label="Close">
+          ×
+        </button>
         <div className="movie-modal-grid">
-          <img className="movie-modal-poster" src={movie.poster || FALLBACK_POSTER} alt={movie.title} />
+          <img
+            className="movie-modal-poster"
+            src={movie.poster || FALLBACK_POSTER}
+            alt={movie.title}
+          />
           <div>
             <h2 className="movie-modal-title">{detail.title}</h2>
             <div className="movie-modal-meta">
-              {[detail.year, detail.rating, detail.tmdb_runtime || detail.runtime ? `${detail.tmdb_runtime || detail.runtime} min` : ""].filter(Boolean).join(" · ")}
+              {[
+                detail.year,
+                detail.rating,
+                detail.tmdb_runtime || detail.runtime
+                  ? `${detail.tmdb_runtime || detail.runtime} min`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </div>
             <p className="movie-modal-overview">
-              {detail.tmdb_overview || detail.overview || "No overview available yet."}
+              {detail.tmdb_overview ||
+                detail.overview ||
+                "No overview available yet."}
             </p>
             <div className="movie-modal-facts">
-              <div className="movie-fact"><div className="movie-fact-label">Director</div>{detail.tmdb_directors || detail.director || "Unknown"}</div>
-              <div className="movie-fact"><div className="movie-fact-label">Cast</div>{detail.tmdb_cast_top5 || detail.star || "Unknown"}</div>
-              <div className="movie-fact"><div className="movie-fact-label">Genres</div>{detail.tmdb_genres || detail.genre || "Unknown"}</div>
-              <div className="movie-fact"><div className="movie-fact-label">Audience Score</div>{detail.tmdb_vote_average || detail.score || "N/A"}</div>
+              <div className="movie-fact">
+                <div className="movie-fact-label">Director</div>
+                {detail.tmdb_directors || detail.director || "Unknown"}
+              </div>
+              <div className="movie-fact">
+                <div className="movie-fact-label">Cast</div>
+                {detail.tmdb_cast_top5 || detail.star || "Unknown"}
+              </div>
+              <div className="movie-fact">
+                <div className="movie-fact-label">Genres</div>
+                {detail.tmdb_genres || detail.genre || "Unknown"}
+              </div>
+              <div className="movie-fact">
+                <div className="movie-fact-label">Audience Score</div>
+                {detail.tmdb_vote_average || detail.score || "N/A"}
+              </div>
             </div>
             <div className="movie-star-row" aria-label="Rate movie">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -183,14 +213,28 @@ export default function MovieDetailModal({ movie, onClose }: Props) {
                   }}
                 >
                   ☆
-                  <span className="movie-star-fill" style={{ width: `${starFillPercent(rating, star)}%` }}>★</span>
+                  <span
+                    className="movie-star-fill"
+                    style={{ width: `${starFillPercent(rating, star)}%` }}
+                  >
+                    ★
+                  </span>
                 </button>
               ))}
             </div>
-            <textarea className="movie-note" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a quick note about your rating..." />
+            <textarea
+              className="movie-note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Add a quick note about your rating..."
+            />
             <div className="movie-actions">
-              <button className="primary-btn" onClick={saveRating}>Save Rating</button>
-              <button className="pill-btn" onClick={addToWatchlist}>Add to Watchlist</button>
+              <button className="primary-btn" onClick={saveRating}>
+                Save Rating
+              </button>
+              <button className="pill-btn" onClick={addToWatchlist}>
+                Add to Watchlist
+              </button>
               {message && <span className="movie-modal-meta">{message}</span>}
             </div>
           </div>

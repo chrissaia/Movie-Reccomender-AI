@@ -47,7 +47,8 @@ function EditListsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const listIdFromUrl = searchParams.get("listId");
-  const kindFromUrl = searchParams.get("kind") === "shared" ? "shared" : "personal";
+  const kindFromUrl =
+    searchParams.get("kind") === "shared" ? "shared" : "personal";
 
   const { user, isSignedIn, isLoaded } = useUser();
   const userId = user?.id;
@@ -122,27 +123,27 @@ function EditListsContent() {
   }, [isLoaded, isSignedIn, userId, listIdFromUrl]);
 
   useEffect(() => {
-      const loadFriends = async () => {
-        if (!isSignedIn || !userId) return;
+    const loadFriends = async () => {
+      if (!isSignedIn || !userId) return;
 
-        try {
-          const res = await fetch(`${API_BASE_URL}/friends`, {
-            headers: {
-              "X-User-Id": userId,
-            },
-          });
+      try {
+        const res = await fetch(`${API_BASE_URL}/friends`, {
+          headers: {
+            "X-User-Id": userId,
+          },
+        });
 
-          if (!res.ok) throw new Error("Failed to load friends");
+        if (!res.ok) throw new Error("Failed to load friends");
 
-          const data: FriendsResponse = await res.json();
-          setFriends(data.friends);
-        } catch (err) {
-          logHandledError("Friends load failed", err);
-          setFriends([]);
-        }
-      };
+        const data: FriendsResponse = await res.json();
+        setFriends(data.friends);
+      } catch (err) {
+        logHandledError("Friends load failed", err);
+        setFriends([]);
+      }
+    };
 
-      loadFriends();
+    loadFriends();
   }, [isSignedIn, userId]);
 
   useEffect(() => {
@@ -156,7 +157,7 @@ function EditListsContent() {
 
       try {
         const res = await fetch(
-          `${API_BASE_URL}/movies/search?q=${encodeURIComponent(query)}`
+          `${API_BASE_URL}/movies/search?q=${encodeURIComponent(query)}`,
         );
 
         if (!res.ok) {
@@ -170,7 +171,7 @@ function EditListsContent() {
           baseResults.map(async (movie) => ({
             ...movie,
             poster: await getTmdbPoster(movie.title),
-          }))
+          })),
         );
 
         setResults(withPosters);
@@ -188,17 +189,19 @@ function EditListsContent() {
 
   const selectedList = useMemo(
     () => lists.find((list) => list.id === selectedListId) ?? null,
-    [lists, selectedListId]
+    [lists, selectedListId],
   );
 
   const filteredSearchResults = useMemo(() => {
     if (!selectedList) return results;
 
     const existingIds = new Set(
-      selectedList.movies.map((movie) => movie.movie_id)
+      selectedList.movies.map((movie) => movie.movie_id),
     );
 
-    return results.filter((movie) => !existingIds.has(movie.movie_id)).slice(0, 5);
+    return results
+      .filter((movie) => !existingIds.has(movie.movie_id))
+      .slice(0, 5);
   }, [results, selectedList]);
 
   const chooseList = (list: SavedList) => {
@@ -208,63 +211,63 @@ function EditListsContent() {
   };
 
   const saveListUpdate = async (
-      listId: string,
-      payload: { name?: string; movies?: SavedMovie[] }
-    ) => {
-      if (!isSignedIn || !userId) {
-        setSaveMessage("Please sign in first.");
-        return null;
+    listId: string,
+    payload: { name?: string; movies?: SavedMovie[] },
+  ) => {
+    if (!isSignedIn || !userId) {
+      setSaveMessage("Please sign in first.");
+      return null;
+    }
+
+    if (kindFromUrl === "shared") {
+      if (payload.name !== undefined) {
+        const res = await fetch(`${API_BASE_URL}/shared-lists/${listId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-User-Id": userId,
+          },
+          body: JSON.stringify({ name: payload.name }),
+        });
+
+        if (!res.ok) throw new Error("Failed to rename shared list");
+
+        const updated = (await res.json()) as SharedList;
+        const normalized = normalizeSharedList(updated);
+
+        setLists((prev) =>
+          prev.map((list) => (list.id === listId ? normalized : list)),
+        );
+
+        return normalized;
       }
 
-      if (kindFromUrl === "shared") {
-        if (payload.name !== undefined) {
-          const res = await fetch(`${API_BASE_URL}/shared-lists/${listId}`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "X-User-Id": userId,
-            },
-            body: JSON.stringify({ name: payload.name }),
-          });
+      return selectedList;
+    }
 
-          if (!res.ok) throw new Error("Failed to rename shared list");
+    const res = await fetch(`${API_BASE_URL}/user/lists/${listId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": userId,
+      },
+      body: JSON.stringify(payload),
+    });
 
-          const updated = (await res.json()) as SharedList;
-          const normalized = normalizeSharedList(updated);
+    if (!res.ok) throw new Error("Failed to update list");
 
-          setLists((prev) =>
-            prev.map((list) => (list.id === listId ? normalized : list))
-          );
+    const updated: SavedList = await res.json();
 
-          return normalized;
-        }
+    const normalized: UnifiedList = {
+      ...updated,
+      kind: "personal",
+    };
 
-        return selectedList;
-      }
+    setLists((prev) =>
+      prev.map((list) => (list.id === listId ? normalized : list)),
+    );
 
-      const res = await fetch(`${API_BASE_URL}/user/lists/${listId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": userId,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error("Failed to update list");
-
-      const updated: SavedList = await res.json();
-
-      const normalized: UnifiedList = {
-        ...updated,
-        kind: "personal",
-      };
-
-      setLists((prev) =>
-        prev.map((list) => (list.id === listId ? normalized : list))
-      );
-
-      return normalized;
+    return normalized;
   };
 
   const saveRename = async () => {
@@ -284,118 +287,118 @@ function EditListsContent() {
   };
 
   const removeMovie = async (movieId: number) => {
-      if (!selectedList || !userId) return;
+    if (!selectedList || !userId) return;
 
-      try {
-        if (kindFromUrl === "shared") {
-          const res = await fetch(
-            `${API_BASE_URL}/shared-lists/${selectedList.id}/movies/${movieId}`,
-            {
-              method: "DELETE",
-              headers: {
-                "X-User-Id": userId,
-              },
-            }
-          );
+    try {
+      if (kindFromUrl === "shared") {
+        const res = await fetch(
+          `${API_BASE_URL}/shared-lists/${selectedList.id}/movies/${movieId}`,
+          {
+            method: "DELETE",
+            headers: {
+              "X-User-Id": userId,
+            },
+          },
+        );
 
-          if (!res.ok) throw new Error("Failed to remove movie");
+        if (!res.ok) throw new Error("Failed to remove movie");
 
-          const updated = (await res.json()) as SharedList;
+        const updated = (await res.json()) as SharedList;
 
-          setLists((prev) =>
-            prev.map((list) =>
-              list.id === selectedList.id
-                ? {
-                    ...list,
-                    movies: toSavedMovies(updated.movies),
-                    members: updated.members,
-                  }
-                : list
-            )
-          );
-        } else {
-          const movies = selectedList.movies.filter(
-            (movie) => movie.movie_id !== movieId
-          );
+        setLists((prev) =>
+          prev.map((list) =>
+            list.id === selectedList.id
+              ? {
+                  ...list,
+                  movies: toSavedMovies(updated.movies),
+                  members: updated.members,
+                }
+              : list,
+          ),
+        );
+      } else {
+        const movies = selectedList.movies.filter(
+          (movie) => movie.movie_id !== movieId,
+        );
 
-          await saveListUpdate(selectedList.id, { movies });
-        }
-      } catch (err) {
-        logHandledError("Movie remove failed", err);
-        setSaveMessage("Could not remove movie.");
+        await saveListUpdate(selectedList.id, { movies });
       }
+    } catch (err) {
+      logHandledError("Movie remove failed", err);
+      setSaveMessage("Could not remove movie.");
+    }
   };
   const createNewList = async () => {
-      if (!isSignedIn || !userId) return;
+    if (!isSignedIn || !userId) return;
 
-      const res = await fetch(`${API_BASE_URL}/user/lists`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": userId,
-        },
-        body: JSON.stringify({
-          name: "Untitled List",
-          movies: [],
-        }),
-      });
+    const res = await fetch(`${API_BASE_URL}/user/lists`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": userId,
+      },
+      body: JSON.stringify({
+        name: "Untitled List",
+        movies: [],
+      }),
+    });
 
-      if (!res.ok) return;
+    if (!res.ok) return;
 
-      const created = await res.json();
-      router.push(`/edit-list?kind=personal&listId=${created.id}`);
+    const created = await res.json();
+    router.push(`/edit-list?kind=personal&listId=${created.id}`);
   };
 
   const addMovie = async (movie: SearchMovie) => {
-      if (!selectedList || !userId) return;
+    if (!selectedList || !userId) return;
 
-      try {
-        if (kindFromUrl === "shared") {
-          const res = await fetch(
-            `${API_BASE_URL}/shared-lists/${selectedList.id}/movies`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-User-Id": userId,
-              },
-              body: JSON.stringify({
-                movie_id: movie.movie_id,
-                title: movie.title,
-              }),
-            }
-          );
+    try {
+      if (kindFromUrl === "shared") {
+        const res = await fetch(
+          `${API_BASE_URL}/shared-lists/${selectedList.id}/movies`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-User-Id": userId,
+            },
+            body: JSON.stringify({
+              movie_id: movie.movie_id,
+              title: movie.title,
+            }),
+          },
+        );
 
-          if (!res.ok) throw new Error("Failed to add movie");
+        if (!res.ok) throw new Error("Failed to add movie");
 
-          const updated = (await res.json()) as SharedList;
+        const updated = (await res.json()) as SharedList;
 
-          setLists((prev) =>
-            prev.map((list) =>
-              list.id === selectedList.id
-                ? {
-                    ...list,
-                    movies: toSavedMovies(updated.movies),
-                    members: updated.members,
-                  }
-                : list
-            )
-          );
-        } else {
-          const movies = [
-            ...selectedList.movies,
-            { movie_id: movie.movie_id, title: movie.title },
-          ];
+        setLists((prev) =>
+          prev.map((list) =>
+            list.id === selectedList.id
+              ? {
+                  ...list,
+                  movies: toSavedMovies(updated.movies),
+                  members: updated.members,
+                }
+              : list,
+          ),
+        );
+      } else {
+        const movies = [
+          ...selectedList.movies,
+          { movie_id: movie.movie_id, title: movie.title },
+        ];
 
-          await saveListUpdate(selectedList.id, { movies });
-        }
-
-        setQuery("");
-        setResults([]);
-      } catch (err) {
-        logHandledError("Movie add failed", err);
-        setSaveMessage("Could not add movie.");
+        await saveListUpdate(selectedList.id, { movies });
       }
+
+      setQuery("");
+      setResults([]);
+    } catch (err) {
+      logHandledError("Movie add failed", err);
+      setSaveMessage("Could not add movie.");
+    }
   };
 
   const deleteList = async () => {
@@ -432,11 +435,13 @@ function EditListsContent() {
   };
 
   const shareWithFriend = async (friend: Friendship) => {
-      if (!selectedList || !userId) return;
+    if (!selectedList || !userId) return;
 
-      try {
-        if (kindFromUrl === "personal") {
-          const res = await fetch(`${API_BASE_URL}/user/lists/${selectedList.id}/share`, {
+    try {
+      if (kindFromUrl === "personal") {
+        const res = await fetch(
+          `${API_BASE_URL}/user/lists/${selectedList.id}/share`,
+          {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -445,53 +450,54 @@ function EditListsContent() {
             body: JSON.stringify({
               member_user_ids: [friend.other_user_id],
             }),
-          });
-
-          if (!res.ok) throw new Error("Failed to share list");
-
-          const shared = (await res.json()) as SharedList;
-
-          router.push(`/edit-list?kind=shared&listId=${shared.id}`);
-          return;
-        }
-
-        const res = await fetch(
-          `${API_BASE_URL}/shared-lists/${selectedList.id}/members`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-User-Id": userId,
-            },
-            body: JSON.stringify({
-              user_id: friend.other_user_id,
-              role: "editor",
-            }),
-          }
+          },
         );
 
-        if (!res.ok) throw new Error("Failed to add friend to shared list");
+        if (!res.ok) throw new Error("Failed to share list");
 
-        const updated = (await res.json()) as SharedList;
+        const shared = (await res.json()) as SharedList;
 
-        setLists((prev) =>
-          prev.map((list) =>
-            list.id === selectedList.id
-              ? {
-                  ...list,
-                  members: updated.members,
-                  movies: toSavedMovies(updated.movies),
-                }
-              : list
-          )
-        );
-
-        setShowSharePanel(false);
-        setSaveMessage("Shared list updated.");
-      } catch (err) {
-        logHandledError("List share failed", err);
-        setSaveMessage("Could not share list.");
+        router.push(`/edit-list?kind=shared&listId=${shared.id}`);
+        return;
       }
+
+      const res = await fetch(
+        `${API_BASE_URL}/shared-lists/${selectedList.id}/members`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-User-Id": userId,
+          },
+          body: JSON.stringify({
+            user_id: friend.other_user_id,
+            role: "editor",
+          }),
+        },
+      );
+
+      if (!res.ok) throw new Error("Failed to add friend to shared list");
+
+      const updated = (await res.json()) as SharedList;
+
+      setLists((prev) =>
+        prev.map((list) =>
+          list.id === selectedList.id
+            ? {
+                ...list,
+                members: updated.members,
+                movies: toSavedMovies(updated.movies),
+              }
+            : list,
+        ),
+      );
+
+      setShowSharePanel(false);
+      setSaveMessage("Shared list updated.");
+    } catch (err) {
+      logHandledError("List share failed", err);
+      setSaveMessage("Could not share list.");
+    }
   };
 
   const seeResults = () => {
@@ -884,7 +890,8 @@ function EditListsContent() {
 
         <h1 className="hero-title">Edit your movie lists.</h1>
         <div className="hero-sub">
-          Rename lists, add better anchors, remove weak picks, and rerun recommendations.
+          Rename lists, add better anchors, remove weak picks, and rerun
+          recommendations.
         </div>
 
         {!isSignedIn && isLoaded && (
@@ -936,8 +943,11 @@ function EditListsContent() {
                   </button>
                 ))}
               </div>
-              <button className="primary-btn add-list-btn" onClick={createNewList}>
-                  + Add New List
+              <button
+                className="primary-btn add-list-btn"
+                onClick={createNewList}
+              >
+                + Add New List
               </button>
             </aside>
 
@@ -977,7 +987,7 @@ function EditListsContent() {
                           className="danger-btn"
                           onClick={() => {
                             const confirmed = window.confirm(
-                              `Are you sure you want to delete "${selectedList?.name}"?`
+                              `Are you sure you want to delete "${selectedList?.name}"?`,
                             );
 
                             if (confirmed) {
@@ -1083,9 +1093,11 @@ function EditListsContent() {
                   </div>
                 )}
 
-                {!loadingSearch && query.trim() && filteredSearchResults.length === 0 && (
-                  <div className="empty">No new matching movies found.</div>
-                )}
+                {!loadingSearch &&
+                  query.trim() &&
+                  filteredSearchResults.length === 0 && (
+                    <div className="empty">No new matching movies found.</div>
+                  )}
               </section>
             </div>
           </div>
@@ -1097,7 +1109,13 @@ function EditListsContent() {
 
 export default function EditListsPage() {
   return (
-    <Suspense fallback={<main className="edit-page"><div className="empty">Loading lists...</div></main>}>
+    <Suspense
+      fallback={
+        <main className="edit-page">
+          <div className="empty">Loading lists...</div>
+        </main>
+      }
+    >
       <EditListsContent />
     </Suspense>
   );

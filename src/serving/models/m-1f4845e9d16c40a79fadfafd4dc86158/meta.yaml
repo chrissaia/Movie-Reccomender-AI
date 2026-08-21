@@ -1,6 +1,6 @@
 artifact_location: file:///Users/christophersaia/PycharmProjects/Movie-Reccomender-AI/mlruns/399004104777275095/models/m-1f4845e9d16c40a79fadfafd4dc86158/artifacts
 creation_timestamp: 1776268700092
-experiment_id: '399004104777275095'
+experiment_id: "399004104777275095"
 last_updated_timestamp: 1776268704340
 model_id: m-1f4845e9d16c40a79fadfafd4dc86158
 model_type: null

@@ -26,7 +26,6 @@ type DiscoveryMovie = {
 };
 
 function DiscoverContent() {
-
   const router = useRouter();
   const { user, isSignedIn } = useUser();
   const searchParams = useSearchParams();
@@ -48,14 +47,16 @@ function DiscoverContent() {
       setMessage("");
 
       try {
-        const res = await fetch(`${API_BASE_URL}/movies/discover?q=${encodeURIComponent(query)}&limit=30`);
+        const res = await fetch(
+          `${API_BASE_URL}/movies/discover?q=${encodeURIComponent(query)}&limit=30`,
+        );
         if (!res.ok) throw new Error("Discovery failed");
         const data: DiscoveryMovie[] = await res.json();
         const enriched = await Promise.all(
           data.map(async (movie) => ({
             ...movie,
             ...(await getTmdbDetails(movie.title)),
-          }))
+          })),
         );
         setMovies(enriched);
       } catch (err) {
@@ -90,7 +91,9 @@ function DiscoverContent() {
       });
 
       setWatchlistMessage(
-        res.ok ? `Added ${movie.title} to your watchlist.` : "Could not add that movie."
+        res.ok
+          ? `Added ${movie.title} to your watchlist.`
+          : "Could not add that movie.",
       );
     } catch (err) {
       logHandledError("Discovery watchlist save failed", err);
@@ -102,7 +105,10 @@ function DiscoverContent() {
     <main className="min-h-screen px-6 py-7 text-slate-50 bg-[linear-gradient(135deg,#070617_0%,#10172f_38%,#312e81_100%)]">
       <div className="max-w-6xl mx-auto">
         <div className="absolute top-6 right-6 z-20 flex items-center gap-3">
-          <button className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold" onClick={() => router.push("/friends")}>
+          <button
+            className="border border-white/12 bg-white/4 text-slate-200 rounded-full px-4 py-1.5 cursor-pointer font-bold"
+            onClick={() => router.push("/friends")}
+          >
             Friends
           </button>
           <button
@@ -115,13 +121,29 @@ function DiscoverContent() {
         </div>
 
         <section className="my-7">
-          <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-3">{query}</h1>
-          <p className="text-white/70 text-lg">A single-list discovery search based on your sentence.</p>
+          <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-3">
+            {query}
+          </h1>
+          <p className="text-white/70 text-lg">
+            A single-list discovery search based on your sentence.
+          </p>
         </section>
 
-        {loading && <div className="rounded-3xl border border-white/10 bg-white/5 p-6">Searching...</div>}
-        {message && <div className="rounded-3xl border border-white/10 bg-white/5 p-6">{message}</div>}
-        {watchlistMessage && <div className="rounded-3xl border border-white/10 bg-white/5 p-4 mb-4">{watchlistMessage}</div>}
+        {loading && (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+            Searching...
+          </div>
+        )}
+        {message && (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+            {message}
+          </div>
+        )}
+        {watchlistMessage && (
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-4 mb-4">
+            {watchlistMessage}
+          </div>
+        )}
 
         <div className="grid gap-4">
           {movies.map((movie, index) => (
@@ -134,13 +156,28 @@ function DiscoverContent() {
                 onClick={() => setActiveMovie(movie)}
                 aria-label={`Open ${movie.title}`}
               >
-                <img className="h-28 w-18 rounded-xl object-cover bg-white/5" src={movie.poster || FALLBACK_POSTER} alt={movie.title} />
+                <img
+                  className="h-28 w-18 rounded-xl object-cover bg-white/5"
+                  src={movie.poster || FALLBACK_POSTER}
+                  alt={movie.title}
+                />
               </button>
-              <button className="text-left" onClick={() => setActiveMovie(movie)}>
-                <div className="text-xs font-black text-violet-200 mb-1">#{index + 1}</div>
+              <button
+                className="text-left"
+                onClick={() => setActiveMovie(movie)}
+              >
+                <div className="text-xs font-black text-violet-200 mb-1">
+                  #{index + 1}
+                </div>
                 <div className="text-xl font-black">{movie.title}</div>
-                <div className="text-white/62 text-sm mt-1">{[movie.year, movie.tmdb_genres].filter(Boolean).join(" · ")}</div>
-                <p className="text-white/70 line-clamp-2 mt-2">{movie.overview || movie.tmdb_overview || "Open for more details."}</p>
+                <div className="text-white/62 text-sm mt-1">
+                  {[movie.year, movie.tmdb_genres].filter(Boolean).join(" · ")}
+                </div>
+                <p className="text-white/70 line-clamp-2 mt-2">
+                  {movie.overview ||
+                    movie.tmdb_overview ||
+                    "Open for more details."}
+                </p>
                 {(movie.match_reasons ?? []).length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-3">
                     {(movie.match_reasons ?? []).map((reason) => (
@@ -167,14 +204,23 @@ function DiscoverContent() {
         </div>
       </div>
 
-      <MovieDetailModal movie={activeMovie} onClose={() => setActiveMovie(null)} />
+      <MovieDetailModal
+        movie={activeMovie}
+        onClose={() => setActiveMovie(null)}
+      />
     </main>
   );
 }
 
 export default function DiscoverPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen px-6 py-7 text-slate-50 bg-[linear-gradient(135deg,#070617_0%,#10172f_38%,#312e81_100%)]">Loading discovery...</main>}>
+    <Suspense
+      fallback={
+        <main className="min-h-screen px-6 py-7 text-slate-50 bg-[linear-gradient(135deg,#070617_0%,#10172f_38%,#312e81_100%)]">
+          Loading discovery...
+        </main>
+      }
+    >
       <DiscoverContent />
     </Suspense>
   );
