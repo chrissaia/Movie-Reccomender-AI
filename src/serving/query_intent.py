@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 
 try:
@@ -42,6 +43,29 @@ def _clean_list(values: object, limit: int = 8) -> list[str]:
     return cleaned
 
 
+def _parse_json_payload(text: str) -> dict | None:
+    """Parse model JSON even if it is wrapped in a Markdown code fence."""
+    cleaned = text.strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", cleaned, flags=re.IGNORECASE | re.DOTALL)
+    if fenced:
+        cleaned = fenced.group(1).strip()
+
+    try:
+        payload = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Last-resort recovery if the model adds a short preamble around the JSON object.
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end <= start:
+            return None
+        try:
+            payload = json.loads(cleaned[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+
+    return payload if isinstance(payload, dict) else None
+
+
 def parse_query_intent(query: str) -> QueryIntent | None:
     if not os.getenv("OPENAI_API_KEY"):
         return None
@@ -58,10 +82,16 @@ def parse_query_intent(query: str) -> QueryIntent | None:
                 {
                     "role": "system",
                     "content": (
-                        "Translate movie discovery requests into compact JSON. "
-                        "Do not choose movies. Extract search signals only. "
-                        "Return exactly these keys: people, genres, moods, keywords, query_rewrite. "
-                        "Use short strings. Put directors, actors, writers, and named creators in people."
+                        "Translate movie discovery requests into compact JSON search intent. "
+                        "Do not choose specific movies. Return exactly these keys: people, genres, moods, keywords, query_rewrite. "
+                        "Infer the user's desired viewing experience, not just literal plot words. "
+                        "For example, 'a rainy night sitting with your lover' should imply a romantic/cozy/intimate viewing mood and romance when appropriate; "
+                        "rain, night, sitting, and lover should not automatically become literal plot requirements. "
+                        "Use people only for actual named directors, actors, writers, or creators. "
+                        "Genres should contain standard movie genres when they are explicit or strongly implied. "
+                        "Moods should describe tone or viewing vibe. Keywords should be meaningful story/theme constraints only, not filler words or viewing context. "
+                        "query_rewrite should be a concise natural-language description of the movies the user actually wants. "
+                        "Return JSON only, with no Markdown fence or commentary."
                     ),
                 },
                 {
@@ -71,8 +101,8 @@ def parse_query_intent(query: str) -> QueryIntent | None:
             ],
         )
 
-        payload = json.loads(response.output_text)
-        if not isinstance(payload, dict):
+        payload = _parse_json_payload(response.output_text)
+        if payload is None:
             return None
 
         rewrite = payload.get("query_rewrite")
