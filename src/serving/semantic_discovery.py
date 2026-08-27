@@ -41,9 +41,9 @@ GENRE_SYNONYMS = {
     "action": ["action", "martial arts", "fight", "chase"],
     "adventure": ["adventure", "quest", "journey"],
     "animation": ["animation", "animated"],
-    "comedy": ["comedy", "funny", "humor", "hilarious", "satire"],
+    "comedy": ["comedy", "funny", "humor", "hilarious", "satire", "laugh", "laughter", "giggle"],
     "crime": ["crime", "criminal", "detective", "heist", "mafia"],
-    "drama": ["drama", "dramatic", "emotional"],
+    "drama": ["drama", "dramatic", "emotional", "sad", "cry", "crying", "tears"],
     "fantasy": ["fantasy", "magic", "myth"],
     "horror": ["horror", "scary", "spooky", "creepy", "haunting"],
     "mystery": ["mystery", "detective", "whodunit", "puzzle"],
@@ -57,12 +57,41 @@ GENRE_SYNONYMS = {
 MOOD_SYNONYMS = {
     "action-packed": ["action", "fight", "martial arts", "chase", "explosion"],
     "dark": ["dark", "bleak", "grim", "noir", "tragic"],
-    "funny": ["funny", "comedy", "humor", "hilarious", "satire"],
+    "funny": ["funny", "comedy", "humor", "hilarious", "satire", "laugh", "laughter", "giggle"],
     "mind-bending": ["mind-bending", "mind bending", "twist", "surreal", "dream", "memory"],
     "romantic": ["romantic", "romance", "love", "relationship"],
     "scary": ["scary", "spooky", "creepy", "horror", "haunting", "terror"],
+    "sad": ["sad", "cry", "crying", "tears", "heartbreaking", "melancholy", "grief", "sorrow"],
     "slow": ["slow", "quiet", "meditative", "patient"],
     "space": ["space", "planet", "astronaut", "alien", "galaxy"],
+}
+
+
+MOOD_GENRES = {
+    "action-packed": ["action"],
+    "dark": ["drama", "thriller"],
+    "funny": ["comedy"],
+    "mind-bending": ["mystery", "science fiction"],
+    "romantic": ["romance", "drama"],
+    "scary": ["horror"],
+    "sad": ["drama"],
+    "slow": ["drama"],
+    "space": ["science fiction"],
+    "uplifting": ["drama", "comedy"],
+    "feel-good": ["comedy"],
+    "hopeful": ["drama"],
+    "bittersweet": ["drama", "romance"],
+    "nostalgic": ["drama"],
+    "cozy": ["comedy", "romance"],
+    "whimsical": ["fantasy", "comedy"],
+    "epic": ["adventure", "fantasy"],
+    "mysterious": ["mystery", "thriller"],
+    "suspenseful": ["thriller", "mystery"],
+    "gritty": ["crime", "drama"],
+    "disturbing": ["horror", "thriller"],
+    "thought-provoking": ["drama", "science fiction"],
+    "contemplative": ["drama"],
+    "adventurous": ["adventure"],
 }
 
 
@@ -139,10 +168,17 @@ def _adjacent_phrases(query: str) -> list[str]:
     return [" ".join(pair) for pair in zip(words, words[1:])]
 
 
+def _genres_for_moods(moods: list[str]) -> list[str]:
+    return _dedupe(
+        [genre for mood in moods for genre in MOOD_GENRES.get(mood, [])]
+    )
+
+
 def parse_query(query: str) -> ParsedQuery:
     terms = _tokens(query)
     genres = _matching_labels(query, GENRE_SYNONYMS)
     moods = _matching_labels(query, MOOD_SYNONYMS)
+    genres = _dedupe([*genres, *_genres_for_moods(moods)])
     people = _dedupe(_extract_people(query) + _adjacent_phrases(query))
     phrases = people + genres + moods
 
@@ -173,10 +209,17 @@ def _merge_intent(parsed: ParsedQuery, intent: QueryIntent | None) -> ParsedQuer
             *(intent.genres or []),
             *(intent.moods or []),
             *(intent.keywords or []),
-            intent.query_rewrite or "",
         ]
     )
     intent_terms = _tokens(intent_text)
+    merged_moods = _dedupe([*parsed.moods, *[mood.lower() for mood in intent.moods]])
+    merged_genres = _dedupe(
+        [
+            *parsed.genres,
+            *[genre.lower() for genre in intent.genres],
+            *_genres_for_moods(merged_moods),
+        ]
+    )
 
     return ParsedQuery(
         raw=parsed.raw,
@@ -190,8 +233,8 @@ def _merge_intent(parsed: ParsedQuery, intent: QueryIntent | None) -> ParsedQuer
                 *intent.keywords,
             ]
         ),
-        genres=_dedupe([*parsed.genres, *[genre.lower() for genre in intent.genres]]),
-        moods=_dedupe([*parsed.moods, *[mood.lower() for mood in intent.moods]]),
+        genres=merged_genres,
+        moods=merged_moods,
         people=_dedupe([*parsed.people, *intent.people]),
     )
 
@@ -366,6 +409,11 @@ def _row_score_and_reasons(row: sqlite3.Row, parsed: ParsedQuery) -> tuple[float
 
     score = 0.0
     reasons: list[str] = []
+    all_mood_terms = {
+        synonym
+        for mood in parsed.moods
+        for synonym in MOOD_SYNONYMS.get(mood, [mood])
+    }
 
     for person in parsed.people:
         person_lower = person.lower()
@@ -386,20 +434,22 @@ def _row_score_and_reasons(row: sqlite3.Row, parsed: ParsedQuery) -> tuple[float
             reasons.append(_title_case(genre))
 
     for mood in parsed.moods:
-        mood_terms = MOOD_SYNONYMS.get(mood, [mood])
-        if _contains_any(keyword_text + " " + overview_text + " " + genre_text, mood_terms):
-            score += 3.0
+        mood_synonyms = MOOD_SYNONYMS.get(mood, [mood])
+        if _contains_any(keyword_text + " " + overview_text + " " + genre_text, mood_synonyms):
+            score += 5.0
             reasons.append(_title_case(mood))
 
     for term in parsed.terms:
+        if term in all_mood_terms:
+            continue
         if term in title:
-            score += 2.5
-        elif term in genre_text or term in people_text:
-            score += 1.5
-        elif term in keyword_text:
-            score += 1.0
-        elif term in overview_text:
             score += 0.5
+        elif term in genre_text or term in people_text:
+            score += 0.75
+        elif term in keyword_text:
+            score += 0.35
+        elif term in overview_text:
+            score += 0.75
 
     vote_average = row["tmdb_vote_average"] or row["score"] or 0
     vote_count = row["tmdb_vote_count"] or row["votes"] or 0

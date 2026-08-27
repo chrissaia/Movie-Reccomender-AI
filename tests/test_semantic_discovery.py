@@ -160,6 +160,42 @@ def make_conn() -> sqlite3.Connection:
             "United Kingdom",
             "English",
         ),
+        (
+            4,
+            "Cry Wolf",
+            2005,
+            "Thriller",
+            "Jeff Wadlow",
+            "Becky Mode",
+            "Lindy Booth",
+            "United States",
+            "PG-13",
+            "Universal Pictures",
+            5.8,
+            1000,
+            None,
+            None,
+            90,
+            1,
+            12345,
+            "Cry Wolf",
+            "Cry Wolf",
+            "2005-07-08",
+            "Teenagers tell a heartbreaking lie that leads to grief and sorrow.",
+            "Drama|Thriller",
+            "heartbreaking|grief|sorrow",
+            "Lindy Booth",
+            "Jeff Wadlow",
+            "Becky Mode",
+            10,
+            5.8,
+            1000,
+            90,
+            "en",
+            "Universal Pictures",
+            "United States",
+            "English",
+        ),
     ]
 
     conn.executemany(
@@ -210,6 +246,29 @@ def test_space_loneliness_query_uses_overview_and_keywords() -> None:
 
     assert results[0]["title"] == "Moon"
     assert "Space" in results[0]["match_reasons"]
+
+
+def test_cry_is_treated_as_a_sad_drama_vibe_not_a_title_match() -> None:
+    conn = make_conn()
+    try:
+        results = semantic_discover_movies(conn, "cry", 3)
+    finally:
+        conn.close()
+
+    assert results[0]["title"] == "Cry Wolf"
+    assert "Sad" in results[0]["match_reasons"]
+    assert "Drama" in results[0]["match_reasons"]
+
+
+def test_laugh_is_treated_as_a_comedy_vibe() -> None:
+    conn = make_conn()
+    try:
+        results = semantic_discover_movies(conn, "laugh", 3)
+    finally:
+        conn.close()
+
+    assert results[0]["title"] == "Scary Movie"
+    assert "Comedy" in results[0]["match_reasons"]
 
 
 def test_llm_intent_can_add_people_to_plain_language(monkeypatch) -> None:
