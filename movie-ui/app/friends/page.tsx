@@ -136,6 +136,23 @@ export default function FriendsPage() {
     await loadFriends();
   };
 
+  const rejectRequest = async (friendshipId: string) => {
+    if (!userId) return;
+
+    const res = await fetch(`${API_BASE_URL}/friends/${friendshipId}`, {
+      method: "DELETE",
+      headers: authHeaders,
+    });
+
+    if (!res.ok) {
+      setMessage("Could not reject request.");
+      return;
+    }
+
+    setMessage("Friend request rejected.");
+    await loadFriends();
+  };
+
   const removeFriend = async (friendshipId: string) => {
     if (!userId) return;
 
@@ -452,12 +469,20 @@ export default function FriendsPage() {
                         </div>
                       </div>
 
-                      <button
-                        className="primary-btn"
-                        onClick={() => acceptRequest(request.id)}
-                      >
-                        Accept
-                      </button>
+                      <div className="user-actions">
+                        <button
+                          className="danger-btn"
+                          onClick={() => rejectRequest(request.id)}
+                        >
+                          Reject
+                        </button>
+                        <button
+                          className="primary-btn"
+                          onClick={() => acceptRequest(request.id)}
+                        >
+                          Accept
+                        </button>
+                      </div>
                     </div>
                   ))}
 
