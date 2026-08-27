@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 
+import AddToListModal from "./AddToListModal";
 import { API_BASE_URL, FALLBACK_POSTER } from "../lib/config";
 import { logHandledError } from "../lib/log";
 
@@ -53,6 +54,7 @@ export default function MovieDetailModal({ movie, onClose }: Props) {
   const [rating, setRating] = useState(3);
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
+  const [listPickerOpen, setListPickerOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -104,37 +106,18 @@ export default function MovieDetailModal({ movie, onClose }: Props) {
     }
   };
 
-  const addToWatchlist = async () => {
+  const openListPicker = () => {
     if (!isSignedIn || !userId) {
-      setMessage("Sign in to add this to your watchlist.");
+      setMessage("Sign in to add this movie to a list.");
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/profile/watchlist`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": userId,
-        },
-        body: JSON.stringify({
-          movie_id: movie.movie_id,
-          title: movie.title,
-          status: "planned",
-        }),
-      });
-
-      setMessage(
-        res.ok ? "Added to watchlist." : "Could not add to watchlist.",
-      );
-    } catch (err) {
-      logHandledError("Watchlist save failed", err);
-      setMessage("Could not reach the watchlist service.");
-    }
+    setListPickerOpen(true);
   };
 
   return (
-    <div className="movie-modal-backdrop" onClick={onClose}>
+    <>
+      <div className="movie-modal-backdrop" onClick={onClose}>
       <style>{`
         .movie-modal-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,0.72); }
         .movie-modal { width: min(860px, 100%); max-height: min(760px, 92vh); overflow-y: auto; border: 1px solid rgba(255,255,255,0.12); border-radius: 24px; background: #0f172a; color: #f8fafc; box-shadow: 0 30px 90px rgba(0,0,0,0.55); }
@@ -232,8 +215,8 @@ export default function MovieDetailModal({ movie, onClose }: Props) {
               <button className="primary-btn" onClick={saveRating}>
                 Save Rating
               </button>
-              <button className="pill-btn" onClick={addToWatchlist}>
-                Add to Watchlist
+              <button className="pill-btn" onClick={openListPicker}>
+                Add to List
               </button>
               {message && <span className="movie-modal-meta">{message}</span>}
             </div>
@@ -241,5 +224,13 @@ export default function MovieDetailModal({ movie, onClose }: Props) {
         </div>
       </div>
     </div>
+
+      <AddToListModal
+        open={listPickerOpen}
+        movie={movie}
+        onClose={() => setListPickerOpen(false)}
+        onAdded={setMessage}
+      />
+    </>
   );
 }

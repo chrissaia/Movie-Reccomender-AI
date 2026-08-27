@@ -7,6 +7,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import AppHeader from "../components/AppHeader";
 import AuthProfileButton from "../components/AuthProfileButton";
 
+import AddToListModal from "../components/AddToListModal";
 import MovieDetailModal from "../components/MovieDetailModal";
 import { API_BASE_URL, FALLBACK_POSTER } from "../lib/config";
 import { logHandledError } from "../lib/log";
@@ -34,7 +35,8 @@ function DiscoverContent() {
   const [activeMovie, setActiveMovie] = useState<DiscoveryMovie | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [watchlistMessage, setWatchlistMessage] = useState("");
+  const [listMessage, setListMessage] = useState("");
+  const [listMovie, setListMovie] = useState<DiscoveryMovie | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -69,37 +71,6 @@ function DiscoverContent() {
 
     load();
   }, [query]);
-
-  const addToWatchlist = async (movie: DiscoveryMovie) => {
-    if (!isSignedIn || !user?.id) {
-      setWatchlistMessage("Sign in to add movies to your watchlist.");
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/profile/watchlist`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Id": user.id,
-        },
-        body: JSON.stringify({
-          movie_id: movie.movie_id,
-          title: movie.title,
-          status: "planned",
-        }),
-      });
-
-      setWatchlistMessage(
-        res.ok
-          ? `Added ${movie.title} to your watchlist.`
-          : "Could not add that movie.",
-      );
-    } catch (err) {
-      logHandledError("Discovery watchlist save failed", err);
-      setWatchlistMessage("Could not reach the watchlist service.");
-    }
-  };
 
   return (
     <main className="min-h-screen px-6 py-7 text-slate-50 bg-[linear-gradient(135deg,#070617_0%,#10172f_38%,#312e81_100%)]">
@@ -139,9 +110,9 @@ function DiscoverContent() {
             {message}
           </div>
         )}
-        {watchlistMessage && (
+        {listMessage && (
           <div className="rounded-3xl border border-white/10 bg-white/5 p-4 mb-4">
-            {watchlistMessage}
+            {listMessage}
           </div>
         )}
 
@@ -194,9 +165,9 @@ function DiscoverContent() {
               {isSignedIn && (
                 <button
                   className="rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-black text-slate-100 hover:bg-white/14"
-                  onClick={() => addToWatchlist(movie)}
+                  onClick={() => setListMovie(movie)}
                 >
-                  Add to Watchlist
+                  Add to List
                 </button>
               )}
             </article>
@@ -207,6 +178,13 @@ function DiscoverContent() {
       <MovieDetailModal
         movie={activeMovie}
         onClose={() => setActiveMovie(null)}
+      />
+
+      <AddToListModal
+        open={Boolean(listMovie)}
+        movie={listMovie}
+        onClose={() => setListMovie(null)}
+        onAdded={setListMessage}
       />
     </main>
   );

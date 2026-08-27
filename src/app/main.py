@@ -17,12 +17,9 @@ from src.db.profile import (
 )
 
 from src.db.movie_ratings import (
-    add_watchlist_movie,
     dislike_movie,
     ensure_movie_rating_tables,
     list_disliked_movie_ids,
-    list_watchlist_movies,
-    remove_watchlist_movie,
     upsert_movie_rating,
 )
 
@@ -240,12 +237,6 @@ class MovieRatingRequest(BaseModel):
 class MovieDislikeRequest(BaseModel):
     movie_id: int
     title: str
-
-
-class WatchlistMovieRequest(BaseModel):
-    movie_id: int
-    title: str
-    status: str = "planned"
 
 
 class CopySharedListRequest(BaseModel):
@@ -922,38 +913,6 @@ def save_movie_rating(
         description=req.description,
     )
 
-
-@app.get("/profile/watchlist")
-def get_watchlist(x_user_id: str | None = Header(default=None)):
-    user_id = require_user_id(x_user_id)
-    ensure_movie_rating_tables()
-    return list_watchlist_movies(user_id)
-
-
-@app.post("/profile/watchlist")
-def save_watchlist_movie(
-    req: WatchlistMovieRequest,
-    x_user_id: str | None = Header(default=None),
-):
-    user_id = require_user_id(x_user_id)
-    ensure_movie_rating_tables()
-    return add_watchlist_movie(
-        user_id=user_id,
-        movie_id=req.movie_id,
-        title=req.title,
-        status=req.status,
-    )
-
-
-@app.delete("/profile/watchlist/{movie_id}")
-def delete_watchlist_movie(
-    movie_id: int,
-    x_user_id: str | None = Header(default=None),
-):
-    user_id = require_user_id(x_user_id)
-    ensure_movie_rating_tables()
-    remove_watchlist_movie(user_id, movie_id)
-    return {"ok": True}
 
 
 @app.get("/profile/disliked-movies")

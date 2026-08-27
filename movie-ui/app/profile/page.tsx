@@ -34,12 +34,6 @@ type ProfilePayload = {
   lists: { id: string; name: string; createdAt: string }[];
   shared_lists: { id: string; name: string; createdAt: string }[];
   friends: { user_id: string; name: string | null; email: string | null }[];
-  watchlist: {
-    movie_id: number;
-    title: string;
-    status: string;
-    createdAt: string;
-  }[];
   recent_activity: { type: string; label: string; createdAt: string }[];
 };
 
@@ -93,7 +87,6 @@ export default function ProfilePage() {
   const [loadingRankSearch, setLoadingRankSearch] = useState(false);
   const [ratingMessage, setRatingMessage] = useState("");
   const [editingBio, setEditingBio] = useState(false);
-  const [watchlistOpen, setWatchlistOpen] = useState(true);
   const [editingPrefs, setEditingPrefs] = useState(false);
   const [prefsDraft, setPrefsDraft] = useState<Record<string, string>>(
     Object.fromEntries(Object.keys(emptyPrefs).map((key) => [key, ""])),
@@ -303,22 +296,6 @@ export default function ProfilePage() {
     } catch (err) {
       logHandledError("Onboarding preferences save failed", err);
       setMessage("Could not reach the profile service.");
-    }
-  };
-
-  const removeFromWatchlist = async (movieId: number) => {
-    if (!userId) return;
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/profile/watchlist/${movieId}`, {
-        method: "DELETE",
-        headers: { "X-User-Id": userId },
-      });
-
-      if (!res.ok) return;
-      await loadProfile();
-    } catch (err) {
-      logHandledError("Watchlist remove failed", err);
     }
   };
 
@@ -657,27 +634,6 @@ export default function ProfilePage() {
           font-weight: 850;
           line-height: 1.35;
           min-height: 38px;
-        }
-
-        .watchlist-toggle {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          border: 0;
-          background: transparent;
-          color: #f8fafc;
-          cursor: pointer;
-          padding: 0;
-          text-align: left;
-        }
-
-        .watchlist-scroll {
-          max-height: 260px;
-          overflow-y: auto;
-          padding-right: 6px;
-          margin-top: 12px;
         }
 
         .preference-editor {
@@ -1178,33 +1134,6 @@ export default function ProfilePage() {
                 </div>
               </section>
 
-              <section className="panel">
-                <button
-                  className="watchlist-toggle"
-                  onClick={() => setWatchlistOpen((open) => !open)}
-                >
-                  <h2 className="panel-title">My Watchlist</h2>
-                  <span>{watchlistOpen ? "Hide" : "Show"}</span>
-                </button>
-
-                {watchlistOpen && (
-                  <div className="watchlist-scroll">
-                    {(data.watchlist ?? []).length === 0 &&
-                      emptyCopy("watchlist movies")}
-                    {(data.watchlist ?? []).map((movie) => (
-                      <div className="list-row" key={movie.movie_id}>
-                        <span>{movie.title}</span>
-                        <button
-                          className="pill-btn"
-                          onClick={() => removeFromWatchlist(movie.movie_id)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
             </div>
             <section className="panel">
               <h2 className="panel-title">Rank Some Movies</h2>
