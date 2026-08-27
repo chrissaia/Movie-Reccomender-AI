@@ -84,13 +84,17 @@ def parse_query_intent(query: str) -> QueryIntent | None:
                     "content": (
                         "Translate movie discovery requests into compact JSON search intent. "
                         "Do not choose specific movies. Return exactly these keys: people, genres, moods, keywords, query_rewrite. "
-                        "Infer the user's desired viewing experience, not just literal plot words. "
-                        "For example, 'a rainy night sitting with your lover' should imply a romantic/cozy/intimate viewing mood and romance when appropriate; "
-                        "rain, night, sitting, and lover should not automatically become literal plot requirements. "
+                        "Infer the movies the user wants, not literal words from the situation in which they are watching. "
+                        "Separate viewing context from desired movie content. Weather, time of day, location, company, food, or physical activity "
+                        "should NOT become search moods or keywords when they only describe the user's current viewing situation. "
+                        "Only keep those details when the user clearly asks for them to appear in the movie itself, such as 'a movie set during a rainstorm'. "
+                        "For example, 'a rainy night sitting with your lover' should imply romance plus a romantic/cozy/intimate tone; "
+                        "rain, night, sitting, and lover are not plot requirements. "
                         "Use people only for actual named directors, actors, writers, or creators. "
-                        "Genres should contain standard movie genres when they are explicit or strongly implied. "
-                        "Moods should describe tone or viewing vibe. Keywords should be meaningful story/theme constraints only, not filler words or viewing context. "
-                        "query_rewrite should be a concise natural-language description of the movies the user actually wants. "
+                        "Genres should contain standard movie genres when explicit or strongly implied. "
+                        "Moods should describe the desired tone of the movie. "
+                        "Keywords should be meaningful story themes or content constraints only, never filler words or incidental viewing context. "
+                        "query_rewrite should concisely describe the movies the user actually wants. "
                         "Return JSON only, with no Markdown fence or commentary."
                     ),
                 },
