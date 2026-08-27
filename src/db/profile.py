@@ -309,7 +309,6 @@ def get_profile_home(user_id: str) -> dict:
         personal_lists = _get_personal_lists(conn, user_id)
         shared_lists = _get_shared_lists(conn, user_id)
         friends = _get_friends(conn, user_id)
-        watchlist = _get_watchlist(conn, user_id)
 
         movie_ids = _collect_movie_ids(conn, user_id)
         taste_summary = _build_taste_summary(conn, movie_ids)
@@ -327,7 +326,6 @@ def get_profile_home(user_id: str) -> dict:
             "lists": personal_lists,
             "shared_lists": shared_lists,
             "friends": friends,
-            "watchlist": watchlist,
             "recent_activity": _get_recent_activity(conn, user_id),
         }
     finally:
@@ -573,31 +571,6 @@ def _get_disliked_movie_titles(conn: sqlite3.Connection, user_id: str) -> list[s
 
     return [row["title"] for row in rows if row["title"]]
 
-
-def _get_watchlist(conn: sqlite3.Connection, user_id: str) -> list[dict]:
-    if not _table_exists(conn, "user_watchlist_movies"):
-        return []
-
-    rows = conn.execute(
-        """
-        SELECT movie_id, title, status, created_at, updated_at
-        FROM user_watchlist_movies
-        WHERE user_id = ?
-        ORDER BY updated_at DESC
-        """,
-        (user_id,),
-    ).fetchall()
-
-    return [
-        {
-            "movie_id": int(row["movie_id"]),
-            "title": row["title"],
-            "status": row["status"],
-            "createdAt": row["created_at"],
-            "updatedAt": row["updated_at"],
-        }
-        for row in rows
-    ]
 
 
 def _get_personal_lists_with_movies(conn: sqlite3.Connection, user_id: str) -> list[dict]:
